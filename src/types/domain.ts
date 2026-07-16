@@ -79,6 +79,7 @@ export interface Attachment {
   exam_id: string
   uploader_id: string
   category: AttachmentCategory
+  subject: SubjectCode | null
   storage_path: string
   thumbnail_path: string
   original_name: string

@@ -23,6 +23,16 @@ function form(overrides: Partial<FormState> = {}): FormState {
 }
 
 describe('exam form contract', () => {
+  it('starts each subject with the configured full score', () => {
+    const subjects = emptySubjects()
+    expect(subjects.chinese.fullScore).toBe('150')
+    expect(subjects.math.fullScore).toBe('150')
+    expect(subjects.english.fullScore).toBe('150')
+    expect(subjects.biology.fullScore).toBe('100')
+    expect(subjects.chemistry.fullScore).toBe('100')
+    expect(subjects.physics.fullScore).toBe('100')
+  })
+
   it('allows a known scale with a missing score, but not a score without its scale', () => {
     expect(validateExamForm(form({ totalFullScore: '750' }), 'user-1')).toBeNull()
     expect(validateExamForm(form({ totalScore: '600' }), 'user-1')).toMatch(/总满分/)
@@ -32,9 +42,9 @@ describe('exam form contract', () => {
     const subjects = emptySubjects()
     subjects.math = { score: '', fullScore: '', rank: '8', participantCount: '200' }
     expect(validateExamForm(form({ subjects }), 'user-1')).toBeNull()
-    expect(buildSubjectScoreInputs(form({ subjects }))).toEqual([
+    expect(buildSubjectScoreInputs(form({ subjects }))).toContainEqual(
       { subject: 'math', score: null, full_score: null, rank_value: 8, participant_count: 200 },
-    ])
+    )
   })
 
   it('normalizes a single-subject test into exactly one primary-subject row', () => {
