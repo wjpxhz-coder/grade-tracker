@@ -5,6 +5,7 @@ import { AppShell } from './components/AppShell'
 import { LoadingScreen } from './components/LoadingScreen'
 import { AuthProvider, useAuth } from './contexts/AuthContext'
 import { ToastProvider } from './contexts/ToastContext'
+import { ThemeProvider } from './contexts/ThemeContext'
 import { signOut } from './lib/api'
 import { LoginPage } from './pages/LoginPage'
 
@@ -67,12 +68,14 @@ function AppRoutes() {
 
 export default function App() {
   return (
-    <QueryClientProvider client={queryClient}>
-      <HashRouter>
-        <ToastProvider>
-          <AuthProvider><AppRoutes /></AuthProvider>
-        </ToastProvider>
-      </HashRouter>
-    </QueryClientProvider>
+    <ThemeProvider>
+      <QueryClientProvider client={queryClient}>
+        <HashRouter>
+          <ToastProvider>
+            <AuthProvider><AppRoutes /></AuthProvider>
+          </ToastProvider>
+        </HashRouter>
+      </QueryClientProvider>
+    </ThemeProvider>
   )
 }

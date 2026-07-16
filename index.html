@@ -5,6 +5,14 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="theme-color" content="#f7f9f4" />
     <meta name="description" content="只属于两个人的成绩成长手账" />
+    <script>
+      try {
+        const savedTheme = localStorage.getItem('grade-journal-theme')
+        const useDark = savedTheme === 'dark' || (savedTheme !== 'light' && matchMedia('(prefers-color-scheme: dark)').matches)
+        document.documentElement.dataset.theme = useDark ? 'dark' : 'light'
+        document.documentElement.style.colorScheme = useDark ? 'dark' : 'light'
+      } catch { /* ThemeProvider will apply the default. */ }
+    </script>
     <title>我们的成绩手账</title>
   </head>
   <body>

@@ -1,9 +1,10 @@
 import { useQuery } from '@tanstack/react-query'
-import { Archive, Database, Download, HardDrive, LoaderCircle, LogOut, ShieldCheck, UserRound } from 'lucide-react'
+import { Archive, Database, Download, HardDrive, LoaderCircle, LogOut, Monitor, MoonStar, Palette, ShieldCheck, Sun, UserRound } from 'lucide-react'
 import { useState } from 'react'
 import { PageHeader } from '../components/PageHeader'
 import { useAuth } from '../contexts/AuthContext'
 import { useToast } from '../contexts/ToastContext'
+import { useTheme, type ThemePreference } from '../contexts/ThemeContext'
 import { downloadAttachment, getStorageUsage, loadExportSnapshot, signOut } from '../lib/api'
 import { objectsToCsv } from '../lib/csv'
 import { buildDataExportArchive, downloadBlob } from '../lib/export'
@@ -19,6 +20,7 @@ function safePart(value: string): string {
 export function SettingsPage() {
   const { profile, profiles, membership } = useAuth()
   const { showToast } = useToast()
+  const { preference, resolvedTheme, setPreference } = useTheme()
   const [exporting, setExporting] = useState('')
   const storageQuery = useQuery({ queryKey: ['storage-usage'], queryFn: getStorageUsage })
   const usage = storageQuery.data?.used_bytes ?? 0
@@ -103,7 +105,7 @@ export function SettingsPage() {
 
   return (
     <div className="page">
-      <PageHeader eyebrow="空间与安全" title="设置" description="管理当前账号、存储空间和离线备份。" />
+      <PageHeader eyebrow="空间与安全" title="设置" description="管理主题外观、当前账号、存储空间和离线备份。" />
       <div className="settings-grid">
         <section className="panel settings-card">
           <div className="settings-card__heading"><span><UserRound /></span><div><h2>当前账号</h2><p>固定双账号之一</p></div></div>
@@ -118,6 +120,16 @@ export function SettingsPage() {
           <div className="storage-bar" aria-label={`已使用 ${usagePercent.toFixed(1)}%`}><i style={{ width: `${usagePercent}%` }} /></div>
           <div className="settings-fact"><span>文件数量</span><strong>{storageQuery.data?.file_count ?? '—'} 个</strong></div>
           <p className="settings-note">达到 80% 时建议先导出并清理旧图片。上传的原图不会保存，只保留优化高清图和缩略图。</p>
+        </section>
+
+        <section className="panel settings-card settings-card--wide">
+          <div className="settings-card__heading"><span><Palette /></span><div><h2>主题外观</h2><p>当前使用{resolvedTheme === 'dark' ? '深色' : '浅色'}配色</p></div></div>
+          <div className="theme-options" role="group" aria-label="主题外观">
+            <button type="button" aria-pressed={preference === 'light'} className={preference === 'light' ? 'theme-option theme-option--active' : 'theme-option'} onClick={() => setPreference('light' satisfies ThemePreference)}><Sun /><span><strong>浅色</strong><small>始终使用明亮背景</small></span></button>
+            <button type="button" aria-pressed={preference === 'dark'} className={preference === 'dark' ? 'theme-option theme-option--active' : 'theme-option'} onClick={() => setPreference('dark' satisfies ThemePreference)}><MoonStar /><span><strong>深色</strong><small>夜间阅读更柔和</small></span></button>
+            <button type="button" aria-pressed={preference === 'system'} className={preference === 'system' ? 'theme-option theme-option--active' : 'theme-option'} onClick={() => setPreference('system' satisfies ThemePreference)}><Monitor /><span><strong>跟随系统</strong><small>随设备外观自动切换</small></span></button>
+          </div>
+          <p className="settings-note">选择会保存在当前浏览器中，不影响另一位成员的主题。</p>
         </section>
 
         <section className="panel settings-card settings-card--wide">

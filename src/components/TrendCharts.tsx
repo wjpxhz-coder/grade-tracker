@@ -6,6 +6,7 @@ import { CanvasRenderer } from 'echarts/renderers'
 import ReactEChartsCore from 'echarts-for-react/lib/core'
 import { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { useTheme } from '../contexts/ThemeContext'
 import { defaultScoreDisplayMode, deriveTrendPoints, type ExamTrendRecord, type ScoreDisplayMode, type TrendMetric } from '../lib/score'
 import type { Exam, SubjectScore } from '../types/domain'
 
@@ -45,6 +46,10 @@ export function TrendCharts({ exams, subjectScores, metric, accent = '#4f7c6a' }
   accent?: string
 }) {
   const navigate = useNavigate()
+  const { resolvedTheme } = useTheme()
+  const chartTheme = resolvedTheme === 'dark'
+    ? { muted: '#a3afa7', line: '#3d4942', split: '#2d3732', tooltip: 'rgba(28,36,32,.97)', ink: '#e8efe9' }
+    : { muted: '#66716a', line: '#dfe6de', split: '#eef1ec', tooltip: 'rgba(255,255,255,.97)', ink: '#24332c' }
   const points = useMemo(() => deriveTrendPoints(toTrendRecords(exams, subjectScores), metric), [exams, subjectScores, metric])
   const suggestedMode = useMemo(() => defaultScoreDisplayMode(points), [points])
   const [displayMode, setDisplayMode] = useState<ScoreDisplayMode>(suggestedMode)
@@ -64,13 +69,13 @@ export function TrendCharts({ exams, subjectScores, metric, accent = '#4f7c6a' }
       { left: 50, right: 26, top: 38, height: '29%' },
       { left: 50, right: 26, top: '59%', height: '27%' },
     ],
-    legend: { top: 2, data: [displayMode === 'percentage' ? '得分率' : '原始分', '年级排名'], textStyle: { color: '#66716a' } },
+    legend: { top: 2, data: [displayMode === 'percentage' ? '得分率' : '原始分', '年级排名'], textStyle: { color: chartTheme.muted } },
     tooltip: {
       trigger: 'axis',
       renderMode: 'richText',
-      backgroundColor: 'rgba(255,255,255,.97)',
-      borderColor: '#dfe6de',
-      textStyle: { color: '#24332c' },
+      backgroundColor: chartTheme.tooltip,
+      borderColor: chartTheme.line,
+      textStyle: { color: chartTheme.ink },
       formatter: (raw) => {
         const params = Array.isArray(raw) ? raw : [raw]
         const index = Number((params[0] as { dataIndex?: number })?.dataIndex ?? 0)
@@ -86,12 +91,12 @@ export function TrendCharts({ exams, subjectScores, metric, accent = '#4f7c6a' }
       },
     },
     xAxis: [
-      { type: 'category', gridIndex: 0, data: labels, axisLabel: { show: false }, axisTick: { show: false }, axisLine: { lineStyle: { color: '#dfe6de' } } },
-      { type: 'category', gridIndex: 1, data: labels, axisLabel: { color: '#7b857f' }, axisTick: { show: false }, axisLine: { lineStyle: { color: '#dfe6de' } } },
+      { type: 'category', gridIndex: 0, data: labels, axisLabel: { show: false }, axisTick: { show: false }, axisLine: { lineStyle: { color: chartTheme.line } } },
+      { type: 'category', gridIndex: 1, data: labels, axisLabel: { color: chartTheme.muted }, axisTick: { show: false }, axisLine: { lineStyle: { color: chartTheme.line } } },
     ],
     yAxis: [
-      { type: 'value', gridIndex: 0, name: displayMode === 'percentage' ? '得分率 %' : '分数', min: displayMode === 'percentage' ? 0 : undefined, max: displayMode === 'percentage' ? 100 : undefined, nameTextStyle: { color: '#7b857f' }, axisLabel: { color: '#7b857f' }, splitLine: { lineStyle: { color: '#eef1ec' } } },
-      { type: 'value', gridIndex: 1, name: '年级排名', inverse: true, min: 1, minInterval: 1, nameTextStyle: { color: '#7b857f' }, axisLabel: { color: '#7b857f' }, splitLine: { lineStyle: { color: '#eef1ec' } } },
+      { type: 'value', gridIndex: 0, name: displayMode === 'percentage' ? '得分率 %' : '分数', min: displayMode === 'percentage' ? 0 : undefined, max: displayMode === 'percentage' ? 100 : undefined, nameTextStyle: { color: chartTheme.muted }, axisLabel: { color: chartTheme.muted }, splitLine: { lineStyle: { color: chartTheme.split } } },
+      { type: 'value', gridIndex: 1, name: '年级排名', inverse: true, min: 1, minInterval: 1, nameTextStyle: { color: chartTheme.muted }, axisLabel: { color: chartTheme.muted }, splitLine: { lineStyle: { color: chartTheme.split } } },
     ],
     dataZoom: [{ type: 'inside', xAxisIndex: [0, 1], filterMode: 'none' }],
     series: [
