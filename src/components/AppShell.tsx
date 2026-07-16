@@ -1,6 +1,7 @@
 import { BarChart3, BookOpenText, Plus, Settings, Trash2 } from 'lucide-react'
 import { NavLink, Outlet, useLocation } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
+import { ProfileAvatar } from './ProfileAvatar'
 
 const navItems = [
   { to: '/', label: '趋势', icon: BarChart3, end: true },
@@ -30,7 +31,7 @@ export function AppShell() {
           ))}
         </nav>
         <div className="side-nav__profile">
-          <span className={`avatar avatar--${profile?.color_key ?? 'sage'}`}>{profile?.display_name?.slice(0, 1) ?? '我'}</span>
+          <ProfileAvatar profile={profile} />
           <div><strong>{profile?.display_name ?? '成长记录者'}</strong><small>已安全登录</small></div>
         </div>
       </aside>

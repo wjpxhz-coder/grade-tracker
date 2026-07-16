@@ -9,6 +9,7 @@ export interface LoginProfile {
   login_alias: string
   login_email: string
   color_key: 'sage' | 'peach' | string
+  avatar_path?: string | null
 }
 
 export interface Profile {
@@ -16,6 +17,7 @@ export interface Profile {
   display_name: string
   login_alias: string
   color_key: string
+  avatar_path?: string | null
   created_at?: string
   updated_at?: string
 }
