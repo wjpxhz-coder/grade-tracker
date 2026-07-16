@@ -1,0 +1,25 @@
+project_id = "our-grade-journal"
+
+[auth]
+site_url = "https://wjpxhz-coder.github.io/grade-tracker/"
+additional_redirect_urls = [
+  "http://localhost:5173",
+  "http://localhost:4173",
+  "https://wjpxhz-coder.github.io/grade-tracker/",
+]
+enable_signup = false
+enable_anonymous_sign_ins = false
+
+[auth.email]
+enable_signup = false
+
+[auth.sms]
+enable_signup = false
+
+[storage.vector]
+enabled = false
+
+[functions.purge-deleted]
+# The function performs its own high-entropy x-cron-secret check. This avoids
+# depending on legacy JWT-shaped anon keys and supports current publishable keys.
+verify_jwt = false

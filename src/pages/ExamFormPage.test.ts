@@ -1,0 +1,66 @@
+import { describe, expect, it } from 'vitest'
+import { buildSubjectScoreInputs, emptySubjects, validateExamForm, type FormState } from './ExamFormPage'
+
+function form(overrides: Partial<FormState> = {}): FormState {
+  return {
+    studentId: 'user-1',
+    title: '期中考试',
+    examDate: '2026-07-16',
+    kind: 'comprehensive',
+    primarySubject: 'math',
+    totalScore: '',
+    totalFullScore: '',
+    rankValue: '',
+    participantCount: '',
+    rankScope: 'overall',
+    visibility: 'shared',
+    academicYear: '',
+    term: '',
+    category: '',
+    subjects: emptySubjects(),
+    ...overrides,
+  }
+}
+
+describe('exam form contract', () => {
+  it('allows a known scale with a missing score, but not a score without its scale', () => {
+    expect(validateExamForm(form({ totalFullScore: '750' }), 'user-1')).toBeNull()
+    expect(validateExamForm(form({ totalScore: '600' }), 'user-1')).toMatch(/总满分/)
+  })
+
+  it('preserves a rank-only comprehensive subject row', () => {
+    const subjects = emptySubjects()
+    subjects.math = { score: '', fullScore: '', rank: '8', participantCount: '200' }
+    expect(validateExamForm(form({ subjects }), 'user-1')).toBeNull()
+    expect(buildSubjectScoreInputs(form({ subjects }))).toEqual([
+      { subject: 'math', score: null, full_score: null, rank_value: 8, participant_count: 200 },
+    ])
+  })
+
+  it('normalizes a single-subject test into exactly one primary-subject row', () => {
+    const value = form({
+      kind: 'single_subject',
+      primarySubject: 'physics',
+      totalScore: '88',
+      totalFullScore: '100',
+      rankValue: '12',
+      participantCount: '260',
+    })
+    expect(validateExamForm(value, 'user-1')).toBeNull()
+    expect(buildSubjectScoreInputs(value)).toEqual([
+      { subject: 'physics', score: 88, full_score: 100, rank_value: 12, participant_count: 260 },
+    ])
+  })
+
+  it('rejects invalid private ownership and inconsistent rankings', () => {
+    expect(validateExamForm(form({ studentId: 'user-2', visibility: 'private' }), 'user-1')).toMatch(/只能创建给自己/)
+    expect(validateExamForm(form({ rankValue: '201', participantCount: '200' }), 'user-1')).toMatch(/不能大于参考人数/)
+  })
+
+  it('rejects non-numeric values and subject scores above their full score', () => {
+    expect(validateExamForm(form({ totalScore: 'abc', totalFullScore: '750' }), 'user-1')).toMatch(/只能填写数字/)
+    const subjects = emptySubjects()
+    subjects.english = { score: '101', fullScore: '100', rank: '', participantCount: '' }
+    expect(validateExamForm(form({ subjects }), 'user-1')).toMatch(/0 到满分/)
+  })
+})
