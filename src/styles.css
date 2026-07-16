@@ -177,6 +177,12 @@ code { padding: 2px 6px; border: 1px solid var(--line); border-radius: 6px; back
 .identity-gate h1 { margin: 8px 0 14px; font-size: clamp(1.7rem, 5vw, 2.4rem); }
 .identity-gate p:not(.eyebrow) { color: var(--muted); line-height: 1.7; }
 .identity-gate .panel > div { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 24px; }
+.app-crash { display: grid; min-height: 100vh; padding: 24px; place-items: center; background: var(--canvas); }
+.app-crash .panel { width: min(100%, 580px); padding: clamp(24px, 5vw, 42px); }
+.app-crash__icon { display: grid; width: 48px; height: 48px; margin-bottom: 20px; place-items: center; border-radius: 14px; background: var(--warning-soft); color: var(--warning); }
+.app-crash h1 { margin-bottom: 12px; font-size: clamp(1.7rem, 5vw, 2.4rem); }
+.app-crash > .panel > p:not(.eyebrow) { color: var(--muted); line-height: 1.75; }
+.app-crash code { display: block; max-height: 110px; margin: 18px 0; overflow: auto; color: var(--danger); overflow-wrap: anywhere; }
 
 /* Shell and navigation */
 .app-shell { display: grid; min-height: 100vh; grid-template-columns: 248px minmax(0, 1fr); }

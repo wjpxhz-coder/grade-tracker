@@ -1,21 +1,20 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { lazy, Suspense } from 'react'
 import { HashRouter, Navigate, Route, Routes } from 'react-router-dom'
+import { AppErrorBoundary } from './components/AppErrorBoundary'
 import { AppShell } from './components/AppShell'
 import { LoadingScreen } from './components/LoadingScreen'
 import { AuthProvider, useAuth } from './contexts/AuthContext'
 import { ToastProvider } from './contexts/ToastContext'
 import { ThemeProvider } from './contexts/ThemeContext'
 import { signOut } from './lib/api'
+import { DashboardPage } from './pages/DashboardPage'
+import { ExamDetailPage } from './pages/ExamDetailPage'
+import { ExamFormPage } from './pages/ExamFormPage'
+import { ExamsPage } from './pages/ExamsPage'
 import { LoginPage } from './pages/LoginPage'
-
-const DashboardPage = lazy(() => import('./pages/DashboardPage').then((module) => ({ default: module.DashboardPage })))
-const ExamsPage = lazy(() => import('./pages/ExamsPage').then((module) => ({ default: module.ExamsPage })))
-const ExamFormPage = lazy(() => import('./pages/ExamFormPage').then((module) => ({ default: module.ExamFormPage })))
-const ExamDetailPage = lazy(() => import('./pages/ExamDetailPage').then((module) => ({ default: module.ExamDetailPage })))
-const TrashPage = lazy(() => import('./pages/TrashPage').then((module) => ({ default: module.TrashPage })))
-const SettingsPage = lazy(() => import('./pages/SettingsPage').then((module) => ({ default: module.SettingsPage })))
-const NotFoundPage = lazy(() => import('./pages/NotFoundPage').then((module) => ({ default: module.NotFoundPage })))
+import { NotFoundPage } from './pages/NotFoundPage'
+import { SettingsPage } from './pages/SettingsPage'
+import { TrashPage } from './pages/TrashPage'
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -48,34 +47,34 @@ function ProtectedLayout() {
 
 function AppRoutes() {
   return (
-    <Suspense fallback={<LoadingScreen />}>
-      <Routes>
-        <Route path="/login" element={<LoginPage />} />
-        <Route element={<ProtectedLayout />}>
-          <Route index element={<DashboardPage />} />
-          <Route path="exams" element={<ExamsPage />} />
-          <Route path="exams/new" element={<ExamFormPage />} />
-          <Route path="exams/:examId" element={<ExamDetailPage />} />
-          <Route path="exams/:examId/edit" element={<ExamFormPage />} />
-          <Route path="trash" element={<TrashPage />} />
-          <Route path="settings" element={<SettingsPage />} />
-          <Route path="*" element={<NotFoundPage />} />
-        </Route>
-      </Routes>
-    </Suspense>
+    <Routes>
+      <Route path="/login" element={<LoginPage />} />
+      <Route element={<ProtectedLayout />}>
+        <Route index element={<DashboardPage />} />
+        <Route path="exams" element={<ExamsPage />} />
+        <Route path="exams/new" element={<ExamFormPage />} />
+        <Route path="exams/:examId" element={<ExamDetailPage />} />
+        <Route path="exams/:examId/edit" element={<ExamFormPage />} />
+        <Route path="trash" element={<TrashPage />} />
+        <Route path="settings" element={<SettingsPage />} />
+        <Route path="*" element={<NotFoundPage />} />
+      </Route>
+    </Routes>
   )
 }
 
 export default function App() {
   return (
-    <ThemeProvider>
-      <QueryClientProvider client={queryClient}>
-        <HashRouter>
-          <ToastProvider>
-            <AuthProvider><AppRoutes /></AuthProvider>
-          </ToastProvider>
-        </HashRouter>
-      </QueryClientProvider>
-    </ThemeProvider>
+    <AppErrorBoundary>
+      <ThemeProvider>
+        <QueryClientProvider client={queryClient}>
+          <HashRouter>
+            <ToastProvider>
+              <AuthProvider><AppRoutes /></AuthProvider>
+            </ToastProvider>
+          </HashRouter>
+        </QueryClientProvider>
+      </ThemeProvider>
+    </AppErrorBoundary>
   )
 }
