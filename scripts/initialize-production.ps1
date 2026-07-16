@@ -3,9 +3,9 @@ param(
   [ValidatePattern('^[a-z0-9]{20}$')]
   [string]$ProjectRef,
 
-  [string]$User1Nickname = '我',
+  [string]$User1Nickname = ([char]0x6211),
   [string]$User1Alias = 'person-one',
-  [string]$User2Nickname = '她',
+  [string]$User2Nickname = ([char]0x5979),
   [string]$User2Alias = 'person-two'
 )
 
@@ -23,13 +23,13 @@ function Read-SecretText([string]$Prompt) {
 }
 
 function Read-ConfirmedPassword([string]$Label) {
-  $password = Read-SecretText "$Label（至少 16 位）"
-  $confirmation = Read-SecretText "再次输入 $Label"
+  $password = Read-SecretText "$Label (at least 16 characters)"
+  $confirmation = Read-SecretText "Repeat $Label"
   if ($password -cne $confirmation) {
-    throw "$Label 两次输入不一致"
+    throw "$Label entries do not match"
   }
   if ($password.Length -lt 16) {
-    throw "$Label 必须至少 16 位"
+    throw "$Label must contain at least 16 characters"
   }
   return $password
 }
@@ -37,13 +37,13 @@ function Read-ConfirmedPassword([string]$Label) {
 $npx = Get-Command npx -ErrorAction Stop
 $projectUrl = "https://$ProjectRef.supabase.co"
 
-Write-Host '正在读取项目配置；管理员密钥不会显示或写入文件。'
+Write-Host 'Reading project configuration. Admin keys will not be displayed or written to disk.'
 $keyJson = & $npx.Source supabase projects api-keys `
   --project-ref $ProjectRef `
   --reveal `
   --output json 2>$null | Out-String
 if ($LASTEXITCODE -ne 0) {
-  throw '无法读取 Supabase API keys；请先运行 npx supabase login'
+  throw 'Unable to read Supabase API keys. Run npx supabase login first.'
 }
 
 $keys = $keyJson | ConvertFrom-Json
@@ -51,13 +51,13 @@ $secretKey = ($keys | Where-Object {
     $_.type -eq 'secret' -and $_.name -eq 'default'
   } | Select-Object -First 1).api_key
 if (-not $secretKey -or $secretKey -notmatch '^sb_secret_') {
-  throw '项目中没有可用的 default secret key'
+  throw 'The project does not have an available default secret key.'
 }
 
-$password1 = Read-ConfirmedPassword "$User1Nickname 的登录密码"
-$password2 = Read-ConfirmedPassword "$User2Nickname 的登录密码"
+$password1 = Read-ConfirmedPassword "Password for $User1Nickname"
+$password2 = Read-ConfirmedPassword "Password for $User2Nickname"
 if ($password1 -ceq $password2) {
-  throw '两个账号必须使用不同密码'
+  throw 'The two accounts must use different passwords.'
 }
 
 try {
@@ -74,7 +74,7 @@ try {
 
   npm run bootstrap:users
   if ($LASTEXITCODE -ne 0) {
-    throw '双账号初始化失败'
+    throw 'Two-account initialization failed.'
   }
 }
 finally {
@@ -97,4 +97,4 @@ finally {
   }
 }
 
-Write-Host '账号初始化完成；密码和管理员密钥已从当前进程清理。'
+Write-Host 'Account initialization finished. Passwords and admin keys were cleared from this process.'
