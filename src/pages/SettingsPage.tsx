@@ -1,11 +1,12 @@
 import { useQuery } from '@tanstack/react-query'
-import { Archive, Database, Download, HardDrive, LoaderCircle, LogOut, Monitor, MoonStar, Palette, ShieldCheck, Sun, UserRound } from 'lucide-react'
-import { useState } from 'react'
+import { Archive, Camera, Database, Download, HardDrive, LoaderCircle, LogOut, Monitor, MoonStar, Palette, ShieldCheck, Sun, UserRound } from 'lucide-react'
+import { useEffect, useRef, useState } from 'react'
 import { PageHeader } from '../components/PageHeader'
+import { ProfileAvatar } from '../components/ProfileAvatar'
 import { useAuth } from '../contexts/AuthContext'
 import { useToast } from '../contexts/ToastContext'
 import { useTheme, type ThemePreference } from '../contexts/ThemeContext'
-import { downloadAttachment, getStorageUsage, loadExportSnapshot, signOut } from '../lib/api'
+import { deleteProfileAvatar, downloadAttachment, getStorageUsage, loadExportSnapshot, signOut, updateMyProfile, uploadProfileAvatar } from '../lib/api'
 import { objectsToCsv } from '../lib/csv'
 import { buildDataExportArchive, downloadBlob } from '../lib/export'
 import { formatBytes } from '../lib/format'
@@ -18,13 +19,70 @@ function safePart(value: string): string {
 }
 
 export function SettingsPage() {
-  const { profile, profiles, membership } = useAuth()
+  const { profile, profiles, membership, refreshIdentity, user } = useAuth()
   const { showToast } = useToast()
   const { preference, resolvedTheme, setPreference } = useTheme()
   const [exporting, setExporting] = useState('')
+  const [nickname, setNickname] = useState('')
+  const [avatarFile, setAvatarFile] = useState<File | null>(null)
+  const [avatarPreview, setAvatarPreview] = useState<string | null>(null)
+  const [removeAvatar, setRemoveAvatar] = useState(false)
+  const [savingProfile, setSavingProfile] = useState(false)
+  const previewUrl = useRef<string | null>(null)
   const storageQuery = useQuery({ queryKey: ['storage-usage'], queryFn: getStorageUsage })
   const usage = storageQuery.data?.used_bytes ?? 0
   const usagePercent = Math.min(100, (usage / FREE_STORAGE_BYTES) * 100)
+
+  useEffect(() => {
+    setNickname(profile?.display_name ?? '')
+  }, [profile?.display_name])
+
+  useEffect(() => () => {
+    if (previewUrl.current) URL.revokeObjectURL(previewUrl.current)
+  }, [])
+
+  function handleAvatarChange(file: File | null) {
+    if (previewUrl.current) URL.revokeObjectURL(previewUrl.current)
+    previewUrl.current = file ? URL.createObjectURL(file) : null
+    setAvatarFile(file)
+    setAvatarPreview(previewUrl.current)
+    setRemoveAvatar(false)
+  }
+
+  async function handleProfileSave() {
+    if (!profile || !user) return
+    const displayName = nickname.trim()
+    if (!displayName) {
+      showToast('昵称不能为空', 'error')
+      return
+    }
+    if (displayName.length > 40) {
+      showToast('昵称不能超过 40 个字符', 'error')
+      return
+    }
+    setSavingProfile(true)
+    let uploadedPath: string | null = null
+    try {
+      let avatarPath: string | null = removeAvatar ? null : (profile.avatar_path ?? null)
+      if (avatarFile) {
+        uploadedPath = await uploadProfileAvatar(user.id, avatarFile)
+        avatarPath = uploadedPath
+      }
+      await updateMyProfile(displayName, avatarPath)
+      if (profile.avatar_path && profile.avatar_path !== avatarPath) {
+        void deleteProfileAvatar(profile.avatar_path).catch(() => undefined)
+      }
+      await refreshIdentity()
+      handleAvatarChange(null)
+      setRemoveAvatar(false)
+      showToast('个人资料已保存', 'success')
+    } catch (error) {
+      if (uploadedPath) void deleteProfileAvatar(uploadedPath).catch(() => undefined)
+      showToast(error instanceof Error ? error.message : '保存个人资料失败', 'error')
+    } finally {
+      setSavingProfile(false)
+    }
+  }
 
   async function handleExport() {
     setExporting('正在整理结构化数据…')
@@ -109,7 +167,12 @@ export function SettingsPage() {
       <div className="settings-grid">
         <section className="panel settings-card">
           <div className="settings-card__heading"><span><UserRound /></span><div><h2>当前账号</h2><p>固定双账号之一</p></div></div>
-          <div className="account-profile"><span className={`avatar avatar--large avatar--${profile?.color_key ?? 'sage'}`}>{profile?.display_name.slice(0, 1)}</span><div><strong>{profile?.display_name}</strong><small>@{profile?.login_alias}</small></div></div>
+          <div className="account-profile"><ProfileAvatar profile={removeAvatar && profile ? { ...profile, avatar_path: null } : profile} size="large" previewUrl={avatarPreview} /><div><strong>{profile?.display_name}</strong><small>@{profile?.login_alias}</small></div></div>
+          <div className="profile-editor">
+            <label className="field"><span>昵称</span><input value={nickname} onChange={(event) => setNickname(event.target.value)} maxLength={40} placeholder="输入昵称" /></label>
+            <div className="profile-editor__avatar"><span>头像</span><div><label className="button button--secondary profile-editor__upload"><Camera size={16} />选择图片<input type="file" accept="image/jpeg,image/png,image/webp,image/heic,image/heif,.jpg,.jpeg,.png,.webp,.heic,.heif" onChange={(event) => handleAvatarChange(event.target.files?.[0] ?? null)} /></label>{(profile?.avatar_path || avatarPreview) && !removeAvatar ? <button type="button" className="button button--ghost" onClick={() => { handleAvatarChange(null); setRemoveAvatar(true) }}>移除头像</button> : null}</div><small>支持 JPG、PNG、WebP、HEIC，图片会压缩为私有头像。</small></div>
+            <button className="button button--primary button--wide" type="button" onClick={() => void handleProfileSave()} disabled={savingProfile}>{savingProfile ? <LoaderCircle className="spin" size={17} /> : null}{savingProfile ? '正在保存' : '保存个人资料'}</button>
+          </div>
           <div className="settings-fact"><span>双人空间成员</span><strong>{profiles.map((item) => item.display_name).join('、')}</strong></div>
           <button className="button button--secondary button--wide" type="button" onClick={() => void handleSignOut()}><LogOut size={17} />退出登录</button>
         </section>

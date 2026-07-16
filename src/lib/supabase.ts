@@ -24,3 +24,4 @@ export const supabase = createClient(
 )
 
 export const ATTACHMENT_BUCKET = 'exam-attachments'
+export const PROFILE_AVATAR_BUCKET = 'profile-avatars'

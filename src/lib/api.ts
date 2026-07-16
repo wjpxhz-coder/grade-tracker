@@ -13,7 +13,7 @@ import type {
   StorageUsage,
   SubjectScore,
 } from '../types/domain'
-import { ATTACHMENT_BUCKET, supabase } from './supabase'
+import { ATTACHMENT_BUCKET, PROFILE_AVATAR_BUCKET, supabase } from './supabase'
 import { adaptHeic2Any, isHeicImage, optimizeImage } from './image'
 import type { SubjectCode } from './score'
 
@@ -51,11 +51,50 @@ export async function signOut(): Promise<void> {
 export async function getProfile(user: User): Promise<Profile> {
   const { data, error } = await supabase
     .from('profiles')
-    .select('id, display_name, login_alias, color_key, created_at, updated_at')
+    .select('id, display_name, login_alias, color_key, avatar_path, created_at, updated_at')
     .eq('id', user.id)
     .single()
   if (error) fail('无法读取个人资料', error)
   return data as Profile
+}
+
+export async function updateMyProfile(displayName: string, avatarPath: string | null): Promise<Profile> {
+  const { data, error } = await supabase.rpc('update_my_profile', {
+    p_display_name: displayName.trim(),
+    p_avatar_path: avatarPath,
+  })
+  if (error) fail('保存个人资料失败', error)
+  return (Array.isArray(data) ? data[0] : data) as Profile
+}
+
+export async function uploadProfileAvatar(userId: string, file: File): Promise<string> {
+  const converted = await optimizeImage(file, {
+    maxInputBytes: 10 * 1024 * 1024,
+    maxLongEdge: 512,
+    maxOutputBytes: 512 * 1024,
+    quality: 0.84,
+    outputType: 'image/webp',
+    heicConverter: isHeicImage(file) ? await heicConverter() : undefined,
+  })
+  const path = `${userId}/${crypto.randomUUID()}.webp`
+  const { error } = await supabase.storage.from(PROFILE_AVATAR_BUCKET).upload(path, converted.image, {
+    contentType: 'image/webp',
+    cacheControl: '3600',
+    upsert: false,
+  })
+  if (error) fail('上传头像失败', error)
+  return path
+}
+
+export async function deleteProfileAvatar(path: string): Promise<void> {
+  const { error } = await supabase.storage.from(PROFILE_AVATAR_BUCKET).remove([path])
+  if (error) fail('删除旧头像失败', error)
+}
+
+export async function createProfileAvatarUrl(path: string): Promise<string> {
+  const { data, error } = await supabase.storage.from(PROFILE_AVATAR_BUCKET).createSignedUrl(path, 60 * 60)
+  if (error || !data?.signedUrl) fail('读取头像失败', error)
+  return data.signedUrl
 }
 
 export async function getMembership(userId: string): Promise<SpaceMember> {
@@ -71,7 +110,7 @@ export async function getMembership(userId: string): Promise<SpaceMember> {
 export async function listProfiles(): Promise<Profile[]> {
   const { data, error } = await supabase
     .from('profiles')
-    .select('id, display_name, login_alias, color_key, created_at, updated_at')
+    .select('id, display_name, login_alias, color_key, avatar_path, created_at, updated_at')
     .order('created_at')
   if (error) fail('无法读取空间成员', error)
   return (data ?? []) as Profile[]
@@ -344,7 +383,7 @@ export interface ExportSnapshot {
 
 export async function loadExportSnapshot(): Promise<ExportSnapshot> {
   const [profiles, exams, subjectScores, notes, attachments] = await Promise.all([
-    supabase.from('profiles').select('id, display_name, login_alias, color_key, created_at, updated_at'),
+    supabase.from('profiles').select('id, display_name, login_alias, color_key, avatar_path, created_at, updated_at'),
     supabase.from('exams').select('*').order('exam_date'),
     supabase.from('subject_scores').select('*').order('exam_id'),
     supabase.from('exam_notes').select('*').order('created_at'),
