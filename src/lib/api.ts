@@ -15,6 +15,7 @@ import type {
 } from '../types/domain'
 import { ATTACHMENT_BUCKET, supabase } from './supabase'
 import { adaptHeic2Any, isHeicImage, optimizeImage } from './image'
+import type { SubjectCode } from './score'
 
 function fail(message: string, cause?: unknown): never {
   const detail = cause instanceof Error ? cause.message : String(cause ?? '')
@@ -216,6 +217,7 @@ export async function uploadExamImage(options: {
   exam: Exam
   uploaderId: string
   category: AttachmentCategory
+  subject?: SubjectCode | null
   pageOrder: number
 }): Promise<Attachment> {
   const converted = await optimizeImage(options.file, {
@@ -253,6 +255,7 @@ export async function uploadExamImage(options: {
       exam_id: options.exam.id,
       uploader_id: options.uploaderId,
       category: options.category,
+      subject: options.subject ?? null,
       storage_path: storagePath,
       thumbnail_path: thumbnailPath,
       original_name: options.file.name,

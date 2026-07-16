@@ -1,12 +1,13 @@
-import { ArrowLeft, Calculator, Check, Info, LoaderCircle, LockKeyhole, Save, Users } from 'lucide-react'
+import { ArrowLeft, Calculator, Check, ImagePlus, Info, LoaderCircle, LockKeyhole, Save, Trash2, Upload, Users } from 'lucide-react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { LoadingScreen } from '../components/LoadingScreen'
 import { useAuth } from '../contexts/AuthContext'
 import { useToast } from '../contexts/ToastContext'
-import { getExamDetails, saveExam } from '../lib/api'
-import { SUBJECT_LABELS } from '../lib/constants'
+import { getExamDetails, saveExam, uploadExamImage } from '../lib/api'
+import { DEFAULT_SUBJECT_FULL_SCORES, SUBJECT_LABELS } from '../lib/constants'
+import { validateImageFile } from '../lib/image'
 import { SUBJECT_CODES, type ExamKind, type RankScope, type SubjectCode } from '../lib/score'
 import type { ExamInput, Visibility } from '../types/domain'
 
@@ -35,8 +36,19 @@ export interface FormState {
   subjects: Record<SubjectCode, SubjectField>
 }
 
+interface PendingAnswerSheet {
+  id: string
+  subject: SubjectCode
+  file: File
+}
+
 export function emptySubjects(): Record<SubjectCode, SubjectField> {
-  return Object.fromEntries(SUBJECT_CODES.map((subject) => [subject, { score: '', fullScore: '', rank: '', participantCount: '' }])) as Record<SubjectCode, SubjectField>
+  return Object.fromEntries(SUBJECT_CODES.map((subject) => [subject, {
+    score: '',
+    fullScore: String(DEFAULT_SUBJECT_FULL_SCORES[subject]),
+    rank: '',
+    participantCount: '',
+  }])) as Record<SubjectCode, SubjectField>
 }
 
 function optionalNumber(value: string): number | null {
@@ -60,7 +72,7 @@ function initialForm(studentId = ''): FormState {
     kind: 'comprehensive',
     primarySubject: 'math',
     totalScore: '',
-    totalFullScore: '',
+    totalFullScore: String(Object.values(DEFAULT_SUBJECT_FULL_SCORES).reduce((sum, value) => sum + value, 0)),
     rankValue: '',
     participantCount: '',
     rankScope: 'overall',
@@ -132,6 +144,10 @@ export function ExamFormPage() {
   const queryClient = useQueryClient()
   const [form, setForm] = useState<FormState>(() => initialForm(profile?.id))
   const [autoTotal, setAutoTotal] = useState(true)
+  const [pendingSubject, setPendingSubject] = useState<SubjectCode>('math')
+  const [pendingAnswerSheets, setPendingAnswerSheets] = useState<PendingAnswerSheet[]>([])
+  const [uploadStatus, setUploadStatus] = useState('')
+  const answerSheetInput = useRef<HTMLInputElement>(null)
   const detailQuery = useQuery({ queryKey: ['exam', examId], queryFn: () => getExamDetails(examId!), enabled: isEditing })
 
   useEffect(() => {
@@ -177,9 +193,8 @@ export function ExamFormPage() {
   const subjectFullSum = useMemo(() => SUBJECT_CODES.reduce((sum, subject) => sum + (optionalNumber(form.subjects[subject].fullScore) ?? 0), 0), [form.subjects])
   const scoredSubjectCount = useMemo(() => SUBJECT_CODES.filter((subject) => optionalNumber(form.subjects[subject].score) !== null).length, [form.subjects])
   const fullScoreSubjectCount = useMemo(() => SUBJECT_CODES.filter((subject) => optionalNumber(form.subjects[subject].fullScore) !== null).length, [form.subjects])
-  const filledSubjectCount = scoredSubjectCount + fullScoreSubjectCount
-  const unpairedSubjectCount = useMemo(() => SUBJECT_CODES.filter((subject) => (optionalNumber(form.subjects[subject].score) !== null) !== (optionalNumber(form.subjects[subject].fullScore) !== null)).length, [form.subjects])
-  const subjectSummaryComplete = useMemo(() => scoredSubjectCount > 0 && SUBJECT_CODES.every((subject) => (optionalNumber(form.subjects[subject].score) !== null) === (optionalNumber(form.subjects[subject].fullScore) !== null)), [form.subjects, scoredSubjectCount])
+  const unpairedSubjectCount = useMemo(() => SUBJECT_CODES.filter((subject) => optionalNumber(form.subjects[subject].score) !== null && optionalNumber(form.subjects[subject].fullScore) === null).length, [form.subjects])
+  const subjectSummaryComplete = scoredSubjectCount > 0 && unpairedSubjectCount === 0
 
   function applySubjectSum() {
     setForm((current) => ({ ...current, totalScore: subjectSummaryComplete ? String(subjectSum) : '', totalFullScore: fullScoreSubjectCount ? String(subjectFullSum) : '' }))
@@ -192,11 +207,45 @@ export function ExamFormPage() {
       if (!autoTotal || (field !== 'score' && field !== 'fullScore')) return { ...current, subjects }
       const scoreCount = SUBJECT_CODES.filter((code) => optionalNumber(subjects[code].score) !== null).length
       const fullCount = SUBJECT_CODES.filter((code) => optionalNumber(subjects[code].fullScore) !== null).length
-      const summaryComplete = scoreCount > 0 && SUBJECT_CODES.every((code) => (optionalNumber(subjects[code].score) !== null) === (optionalNumber(subjects[code].fullScore) !== null))
+      const summaryComplete = scoreCount > 0 && SUBJECT_CODES.every((code) => optionalNumber(subjects[code].score) === null || optionalNumber(subjects[code].fullScore) !== null)
       const score = SUBJECT_CODES.reduce((sum, code) => sum + (optionalNumber(subjects[code].score) ?? 0), 0)
       const full = SUBJECT_CODES.reduce((sum, code) => sum + (optionalNumber(subjects[code].fullScore) ?? 0), 0)
       return { ...current, subjects, totalScore: summaryComplete ? String(score) : '', totalFullScore: fullCount ? String(full) : '' }
     })
+  }
+
+  function changeExamKind(kind: ExamKind) {
+    const defaultFullScore = kind === 'single_subject'
+      ? DEFAULT_SUBJECT_FULL_SCORES[form.primarySubject]
+      : Object.values(DEFAULT_SUBJECT_FULL_SCORES).reduce((sum, value) => sum + value, 0)
+    setForm((current) => ({ ...current, kind, rankScope: kind === 'single_subject' ? 'subject' : 'overall', totalFullScore: String(defaultFullScore) }))
+    if (kind === 'single_subject') {
+      setPendingSubject(form.primarySubject)
+      setPendingAnswerSheets((current) => current.map((item) => ({ ...item, subject: form.primarySubject })))
+    }
+    setAutoTotal(true)
+  }
+
+  function changePrimarySubject(subject: SubjectCode) {
+    setForm((current) => ({ ...current, primarySubject: subject, totalFullScore: String(DEFAULT_SUBJECT_FULL_SCORES[subject]) }))
+    setPendingSubject(subject)
+    setPendingAnswerSheets((current) => current.map((item) => ({ ...item, subject })))
+    setAutoTotal(true)
+  }
+
+  function queueAnswerSheets(files: FileList | null) {
+    if (!files?.length) return
+    const valid: PendingAnswerSheet[] = []
+    for (const file of [...files]) {
+      try {
+        validateImageFile(file)
+        valid.push({ id: crypto.randomUUID(), subject: form.kind === 'single_subject' ? form.primarySubject : pendingSubject, file })
+      } catch (error) {
+        showToast(error instanceof Error ? error.message : `${file.name} 不是可用图片`, 'error')
+      }
+    }
+    if (valid.length) setPendingAnswerSheets((current) => [...current, ...valid])
+    if (answerSheetInput.current) answerSheetInput.current.value = ''
   }
 
   const saveMutation = useMutation({
@@ -227,14 +276,39 @@ export function ExamFormPage() {
         category: form.category.trim() || null,
         subject_scores: subjectScores,
       }
-      return saveExam(payload, detailQuery.data?.version)
+      const saved = await saveExam(payload, detailQuery.data?.version)
+      let uploadedCount = 0
+      let uploadError: string | null = null
+      for (let index = 0; index < pendingAnswerSheets.length; index += 1) {
+        setUploadStatus(`正在上传答题卡 ${index + 1} / ${pendingAnswerSheets.length}`)
+        try {
+          await uploadExamImage({
+            file: pendingAnswerSheets[index].file,
+            exam: saved,
+            uploaderId: user!.id,
+            category: 'answer_sheet',
+            subject: pendingAnswerSheets[index].subject,
+            pageOrder: (detailQuery.data?.attachments.length ?? 0) + index,
+          })
+          uploadedCount += 1
+        } catch (error) {
+          uploadError = error instanceof Error ? error.message : '图片上传失败'
+          break
+        }
+      }
+      setUploadStatus('')
+      return { saved, uploadedCount, uploadError }
     },
-    onSuccess: async (saved) => {
+    onSuccess: async ({ saved, uploadedCount, uploadError }) => {
       await queryClient.invalidateQueries({ queryKey: ['exams'] })
-      showToast(isEditing ? '考试记录已更新' : '考试记录已添加', 'success')
+      if (uploadError) {
+        showToast(`考试已保存，已上传 ${uploadedCount} 张答题卡；其余图片失败：${uploadError}`, 'error')
+      } else {
+        showToast(pendingAnswerSheets.length ? `考试已保存，${uploadedCount} 张答题卡已上传` : (isEditing ? '考试记录已更新' : '考试记录已添加'), 'success')
+      }
       void navigate(`/exams/${saved.id}`, { replace: true })
     },
-    onError: (error) => showToast(error.message, 'error'),
+    onError: (error) => { setUploadStatus(''); showToast(error.message, 'error') },
   })
 
   if (detailQuery.isLoading) return <LoadingScreen label="正在准备考试记录…" />
@@ -244,7 +318,7 @@ export function ExamFormPage() {
 
   return (
     <div className="page form-page">
-      <header className="form-page__header"><Link to={examId ? `/exams/${examId}` : '/exams'} className="icon-button" aria-label="返回"><ArrowLeft /></Link><div><p className="eyebrow">{isEditing ? '共同编辑' : '新的记录'}</p><h1>{isEditing ? '编辑考试' : '添加一场考试'}</h1></div><button className="button button--primary" type="button" disabled={saveMutation.isPending} onClick={() => saveMutation.mutate()}>{saveMutation.isPending ? <LoaderCircle className="spin" size={17} /> : <Save size={17} />}{saveMutation.isPending ? '保存中…' : '保存'}</button></header>
+      <header className="form-page__header"><Link to={examId ? `/exams/${examId}` : '/exams'} className="icon-button" aria-label="返回"><ArrowLeft /></Link><div><p className="eyebrow">{isEditing ? '共同编辑' : '新的记录'}</p><h1>{isEditing ? '编辑考试' : '添加一场考试'}</h1></div><button className="button button--primary" type="button" disabled={saveMutation.isPending} onClick={() => saveMutation.mutate()}>{saveMutation.isPending ? <LoaderCircle className="spin" size={17} /> : <Save size={17} />}{uploadStatus || (saveMutation.isPending ? '保存中…' : '保存')}</button></header>
 
       <div className="form-layout">
         <section className="panel form-section">
@@ -253,8 +327,8 @@ export function ExamFormPage() {
             <label className="field field--span-2"><span>考试名称 *</span><input value={form.title} onChange={(event) => setForm({ ...form, title: event.target.value })} placeholder="例如：高二上学期期中考试" maxLength={80} /></label>
             <label className="field"><span>成绩属于 *</span><select value={form.studentId} disabled={isEditing} onChange={(event) => setForm({ ...form, studentId: event.target.value })}>{profiles.map((item) => <option key={item.id} value={item.id}>{item.display_name}</option>)}</select>{isEditing ? <small>创建后不能更改成绩所属人。</small> : null}</label>
             <label className="field"><span>考试日期 *</span><input type="date" value={form.examDate} onChange={(event) => setForm({ ...form, examDate: event.target.value })} /></label>
-            <label className="field"><span>考试类型</span><select value={form.kind} onChange={(event) => setForm({ ...form, kind: event.target.value as ExamKind, rankScope: event.target.value === 'single_subject' ? 'subject' : 'overall' })}><option value="comprehensive">综合考试</option><option value="single_subject">单科测验</option></select></label>
-            {form.kind === 'single_subject' ? <label className="field"><span>测验科目</span><select value={form.primarySubject} onChange={(event) => setForm({ ...form, primarySubject: event.target.value as SubjectCode })}>{SUBJECT_CODES.map((subject) => <option key={subject} value={subject}>{SUBJECT_LABELS[subject]}</option>)}</select></label> : null}
+            <label className="field"><span>考试类型</span><select value={form.kind} onChange={(event) => changeExamKind(event.target.value as ExamKind)}><option value="comprehensive">综合考试</option><option value="single_subject">单科测验</option></select></label>
+            {form.kind === 'single_subject' ? <label className="field"><span>测验科目</span><select value={form.primarySubject} onChange={(event) => changePrimarySubject(event.target.value as SubjectCode)}>{SUBJECT_CODES.map((subject) => <option key={subject} value={subject}>{SUBJECT_LABELS[subject]}</option>)}</select></label> : null}
             <label className="field"><span>学年（可选）</span><input value={form.academicYear} onChange={(event) => setForm({ ...form, academicYear: event.target.value })} placeholder="2026-2027" /></label>
             <label className="field"><span>学期（可选）</span><input value={form.term} onChange={(event) => setForm({ ...form, term: event.target.value })} placeholder="高二上学期" /></label>
             <label className="field"><span>分类（可选）</span><input value={form.category} onChange={(event) => setForm({ ...form, category: event.target.value })} placeholder="月考、期中、模拟考…" /></label>
@@ -278,11 +352,21 @@ export function ExamFormPage() {
             <div className="subject-table__head" role="row"><span>科目</span><span>得分</span><span>满分</span><span>单科排名</span><span>参考人数</span></div>
             {SUBJECT_CODES.map((subject) => <div className="subject-table__row" role="row" key={subject}><strong>{SUBJECT_LABELS[subject]}</strong><label className="subject-table__cell"><span>得分</span><input aria-label={`${SUBJECT_LABELS[subject]}得分`} inputMode="decimal" value={form.subjects[subject].score} onChange={(event) => updateSubject(subject, 'score', event.target.value)} placeholder="—" /></label><label className="subject-table__cell"><span>满分</span><input aria-label={`${SUBJECT_LABELS[subject]}满分`} inputMode="decimal" value={form.subjects[subject].fullScore} onChange={(event) => updateSubject(subject, 'fullScore', event.target.value)} placeholder="—" /></label><label className="subject-table__cell"><span>单科排名</span><input aria-label={`${SUBJECT_LABELS[subject]}排名`} inputMode="numeric" value={form.subjects[subject].rank} onChange={(event) => updateSubject(subject, 'rank', event.target.value)} placeholder="—" /></label><label className="subject-table__cell"><span>参考人数</span><input aria-label={`${SUBJECT_LABELS[subject]}参考人数`} inputMode="numeric" value={form.subjects[subject].participantCount} onChange={(event) => updateSubject(subject, 'participantCount', event.target.value)} placeholder="—" /></label></div>)}
           </div>
-          {filledSubjectCount ? <div className={`sum-hint${totalDiff || !subjectSummaryComplete ? ' sum-hint--warning' : ''}`}><Calculator size={18} /><span>{subjectSummaryComplete ? `分科合计：${subjectSum} / ${subjectFullSum}${totalDiff ? '，与手动总分不同' : '，已同步到总分'}` : `有 ${unpairedSubjectCount} 科得分或满分尚未配对，未自动汇总得分`}</span>{subjectSummaryComplete && (totalDiff || !autoTotal) ? <button type="button" onClick={applySubjectSum}>使用分科合计</button> : subjectSummaryComplete ? <Check size={17} /> : <Info size={17} />}</div> : null}
+          {scoredSubjectCount ? <div className={`sum-hint${totalDiff || !subjectSummaryComplete ? ' sum-hint--warning' : ''}`}><Calculator size={18} /><span>{subjectSummaryComplete ? `分科合计：${subjectSum} / ${subjectFullSum}${totalDiff ? '，与手动总分不同' : '，已同步到总分'}` : `有 ${unpairedSubjectCount} 科填写得分后缺少满分，未自动汇总得分`}</span>{subjectSummaryComplete && (totalDiff || !autoTotal) ? <button type="button" onClick={applySubjectSum}>使用分科合计</button> : subjectSummaryComplete ? <Check size={17} /> : <Info size={17} />}</div> : null}
         </section> : null}
 
         <section className="panel form-section form-section--wide">
-          <div className="form-section__heading"><span>4</span><div><h2>谁可以看到？</h2><p>默认双方共享；私密记录只能创建给自己。</p></div></div>
+          <div className="form-section__heading"><span>4</span><div><h2>单科答题卡（可选）</h2><p>现在选择图片，保存考试后会自动压缩并上传。</p></div></div>
+          <div className="answer-sheet-picker">
+            {form.kind === 'comprehensive' ? <label className="field"><span>所属科目</span><select value={pendingSubject} onChange={(event) => setPendingSubject(event.target.value as SubjectCode)}>{SUBJECT_CODES.map((subject) => <option key={subject} value={subject}>{SUBJECT_LABELS[subject]}</option>)}</select></label> : <div className="answer-sheet-picker__subject"><span>所属科目</span><strong>{SUBJECT_LABELS[form.primarySubject]}</strong></div>}
+            <button className="button button--secondary" type="button" onClick={() => answerSheetInput.current?.click()}><Upload size={16} />选择答题卡图片</button>
+            <input ref={answerSheetInput} hidden type="file" accept="image/jpeg,image/png,image/webp,.heic,.heif" multiple onChange={(event) => queueAnswerSheets(event.target.files)} />
+          </div>
+          {pendingAnswerSheets.length ? <div className="pending-answer-sheets">{pendingAnswerSheets.map((item) => <div key={item.id}><ImagePlus size={18} /><span><strong>{SUBJECT_LABELS[item.subject]}答题卡</strong><small>{item.file.name}</small></span><button type="button" aria-label={`移除${item.file.name}`} onClick={() => setPendingAnswerSheets((current) => current.filter((candidate) => candidate.id !== item.id))}><Trash2 size={16} /></button></div>)}</div> : <p className="muted-copy answer-sheet-empty">还没有选择图片；支持 JPG、PNG、WebP、HEIC/HEIF，可一次选择多张。</p>}
+        </section>
+
+        <section className="panel form-section form-section--wide">
+          <div className="form-section__heading"><span>5</span><div><h2>谁可以看到？</h2><p>默认双方共享；私密记录只能创建给自己。</p></div></div>
           <div className="visibility-options">
             <button type="button" className={form.visibility === 'shared' ? 'visibility-option visibility-option--active' : 'visibility-option'} onClick={() => setForm({ ...form, visibility: 'shared' })}><Users /><span><strong>双方可见</strong><small>两个人都能查看和共同编辑</small></span>{form.visibility === 'shared' ? <Check /> : null}</button>
             <button type="button" disabled={isEditing && form.studentId !== user?.id} className={form.visibility === 'private' ? 'visibility-option visibility-option--active' : 'visibility-option'} onClick={() => setForm({ ...form, visibility: 'private', studentId: isEditing ? form.studentId : (user?.id ?? form.studentId) })}><LockKeyhole /><span><strong>仅自己可见</strong><small>{isEditing && form.studentId !== user?.id ? '只有成绩所属人可以转为私密' : '只有当前账号可以查看和维护'}</small></span>{form.visibility === 'private' ? <Check /> : null}</button>
@@ -290,7 +374,7 @@ export function ExamFormPage() {
           <div className="privacy-hint"><Info size={16} />共享后，对方仍可能截图或下载已看到的内容。</div>
         </section>
       </div>
-      <div className="form-actions"><Link className="button button--ghost" to={examId ? `/exams/${examId}` : '/exams'}>取消</Link><button className="button button--primary" type="button" disabled={saveMutation.isPending} onClick={() => saveMutation.mutate()}><Save size={17} />保存考试</button></div>
+      <div className="form-actions"><Link className="button button--ghost" to={examId ? `/exams/${examId}` : '/exams'}>取消</Link><button className="button button--primary" type="button" disabled={saveMutation.isPending} onClick={() => saveMutation.mutate()}>{saveMutation.isPending ? <LoaderCircle className="spin" size={17} /> : <Save size={17} />}{uploadStatus || (saveMutation.isPending ? '保存中…' : '保存考试')}</button></div>
     </div>
   )
 }

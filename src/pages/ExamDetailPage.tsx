@@ -10,7 +10,7 @@ import { useToast } from '../contexts/ToastContext'
 import { addNote, deleteNote, getExamDetails, restoreExam, softDeleteAttachment, softDeleteExam, updateNote, uploadExamImage } from '../lib/api'
 import { ATTACHMENT_CATEGORY_LABELS, SUBJECT_LABELS } from '../lib/constants'
 import { formatDate, formatDateTime, formatScore } from '../lib/format'
-import { calculateRankPercentile, calculateScoreRate } from '../lib/score'
+import { calculateRankPercentile, calculateScoreRate, type SubjectCode } from '../lib/score'
 import type { AttachmentCategory, AuditEvent, ExamNote } from '../types/domain'
 
 const AUDIT_FIELD_LABELS: Record<string, string> = {
@@ -51,6 +51,7 @@ export function ExamDetailPage() {
   const [newNote, setNewNote] = useState('')
   const [editingNote, setEditingNote] = useState<ExamNote | null>(null)
   const [category, setCategory] = useState<AttachmentCategory>('answer_sheet')
+  const [attachmentSubject, setAttachmentSubject] = useState<SubjectCode | ''>('')
   const [uploadStatus, setUploadStatus] = useState('')
   const query = useQuery({ queryKey: ['exam', examId], queryFn: () => getExamDetails(examId!), enabled: Boolean(examId) })
   const exam = query.data
@@ -97,7 +98,14 @@ export function ExamDetailPage() {
     try {
       for (let index = 0; index < array.length; index += 1) {
         setUploadStatus(`正在优化并上传 ${index + 1} / ${array.length}`)
-        await uploadExamImage({ file: array[index], exam, uploaderId: user.id, category, pageOrder: exam.attachments.length + index })
+        await uploadExamImage({
+          file: array[index],
+          exam,
+          uploaderId: user.id,
+          category,
+          subject: exam.kind === 'single_subject' ? exam.primary_subject : (attachmentSubject || null),
+          pageOrder: exam.attachments.length + index,
+        })
         successCount += 1
       }
       showToast(`${array.length} 张图片已安全上传`, 'success')
@@ -140,7 +148,7 @@ export function ExamDetailPage() {
           </section>
 
           <section className="panel detail-section">
-            <div className="section-heading"><div><p className="eyebrow">试卷与答题卡</p><h2>图片资料</h2></div>{canEdit ? <div className="upload-actions"><select value={category} onChange={(event) => setCategory(event.target.value as AttachmentCategory)}>{Object.entries(ATTACHMENT_CATEGORY_LABELS).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select><button className="button button--secondary" type="button" onClick={() => fileInput.current?.click()} disabled={Boolean(uploadStatus)}>{uploadStatus ? <LoaderCircle className="spin" size={16} /> : <Upload size={16} />}{uploadStatus || '上传图片'}</button><input ref={fileInput} hidden type="file" accept="image/jpeg,image/png,image/webp,.heic,.heif" multiple onChange={(event) => void handleFiles(event.target.files)} /></div> : null}</div>
+            <div className="section-heading"><div><p className="eyebrow">试卷与答题卡</p><h2>图片资料</h2></div>{canEdit ? <div className="upload-actions">{exam.kind === 'comprehensive' ? <select aria-label="图片所属科目" value={attachmentSubject} onChange={(event) => setAttachmentSubject(event.target.value as SubjectCode | '')}><option value="">不指定科目</option>{Object.entries(SUBJECT_LABELS).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select> : null}<select aria-label="图片类别" value={category} onChange={(event) => setCategory(event.target.value as AttachmentCategory)}>{Object.entries(ATTACHMENT_CATEGORY_LABELS).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select><button className="button button--secondary" type="button" onClick={() => fileInput.current?.click()} disabled={Boolean(uploadStatus)}>{uploadStatus ? <LoaderCircle className="spin" size={16} /> : <Upload size={16} />}{uploadStatus || '上传图片'}</button><input ref={fileInput} hidden type="file" accept="image/jpeg,image/png,image/webp,.heic,.heif" multiple onChange={(event) => void handleFiles(event.target.files)} /></div> : null}</div>
             {exam.attachments.length ? <div className="attachment-grid">{exam.attachments.map((attachment) => <AttachmentTile key={attachment.id} attachment={attachment} canEdit={canEdit} onDelete={() => { if (window.confirm('这张图片将随记录保留 30 天后永久删除。')) void softDeleteAttachment(attachment, user!.id).then(invalidate).then(() => showToast('图片已移入回收状态', 'success')).catch((error: Error) => showToast(error.message, 'error')) }} />)}</div> : <div className="empty-inline"><ImagePlus size={26} /><div><strong>还没有图片</strong><p>上传前会自动压缩、纠正方向并移除 EXIF 信息。</p></div>{canEdit ? <button className="button button--secondary" type="button" onClick={() => fileInput.current?.click()}>选择图片</button> : null}</div>}
           </section>
 
