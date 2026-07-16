@@ -1,0 +1,160 @@
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { ArrowLeft, CalendarDays, Edit3, History, ImagePlus, LoaderCircle, LockKeyhole, MessageSquarePlus, RotateCcw, Trash2, Trophy, Upload, Users } from 'lucide-react'
+import { useMemo, useRef, useState } from 'react'
+import { Link, useNavigate, useParams } from 'react-router-dom'
+import { AttachmentTile } from '../components/AttachmentTile'
+import { ErrorState } from '../components/ErrorState'
+import { LoadingScreen } from '../components/LoadingScreen'
+import { useAuth } from '../contexts/AuthContext'
+import { useToast } from '../contexts/ToastContext'
+import { addNote, deleteNote, getExamDetails, restoreExam, softDeleteAttachment, softDeleteExam, updateNote, uploadExamImage } from '../lib/api'
+import { ATTACHMENT_CATEGORY_LABELS, SUBJECT_LABELS } from '../lib/constants'
+import { formatDate, formatDateTime, formatScore } from '../lib/format'
+import { calculateRankPercentile, calculateScoreRate } from '../lib/score'
+import type { AttachmentCategory, AuditEvent, ExamNote } from '../types/domain'
+
+const AUDIT_FIELD_LABELS: Record<string, string> = {
+  title: '名称', exam_date: '日期', kind: '类型', primary_subject: '科目',
+  total_score: '分数', total_full_score: '满分', rank_value: '排名',
+  participant_count: '参考人数', visibility: '可见范围', academic_year: '学年',
+  term: '学期', category: '分类',
+}
+
+function auditDescription(event: AuditEvent): string {
+  const changes = event.changes as { old?: Record<string, unknown>; new?: Record<string, unknown> } | null
+  const oldData = changes?.old ?? {}
+  const newData = changes?.new ?? {}
+  if (event.entity_type === 'exam') {
+    if (event.action === 'create') return '创建了这场考试'
+    if (event.action === 'delete') return '将考试移入了回收站'
+    if (event.action === 'restore') return '恢复了这场考试'
+    const fields = Object.keys(AUDIT_FIELD_LABELS).filter((key) => oldData[key] !== newData[key]).map((key) => AUDIT_FIELD_LABELS[key])
+    return fields.length ? `修改了考试的${fields.slice(0, 4).join('、')}${fields.length > 4 ? '等信息' : ''}` : '更新了考试记录'
+  }
+  if (event.entity_type === 'subject_score') {
+    const subject = String(newData.subject ?? oldData.subject ?? '')
+    const label = SUBJECT_LABELS[subject as keyof typeof SUBJECT_LABELS] ?? '分科'
+    return event.action === 'create' ? `添加了${label}成绩` : event.action === 'delete' ? `删除了${label}成绩` : `修改了${label}成绩`
+  }
+  const entity = event.entity_type === 'exam_note' ? '心得' : event.entity_type === 'attachment' ? '图片' : '内容'
+  const verb = event.action === 'create' ? '添加了' : event.action === 'delete' ? '删除了' : event.action === 'restore' ? '恢复了' : '修改了'
+  return `${verb}${entity}`
+}
+
+export function ExamDetailPage() {
+  const { examId } = useParams()
+  const { user, profiles } = useAuth()
+  const { showToast } = useToast()
+  const navigate = useNavigate()
+  const queryClient = useQueryClient()
+  const fileInput = useRef<HTMLInputElement>(null)
+  const [newNote, setNewNote] = useState('')
+  const [editingNote, setEditingNote] = useState<ExamNote | null>(null)
+  const [category, setCategory] = useState<AttachmentCategory>('answer_sheet')
+  const [uploadStatus, setUploadStatus] = useState('')
+  const query = useQuery({ queryKey: ['exam', examId], queryFn: () => getExamDetails(examId!), enabled: Boolean(examId) })
+  const exam = query.data
+  const profileMap = useMemo(() => new Map(profiles.map((profile) => [profile.id, profile])), [profiles])
+  const owner = exam ? profileMap.get(exam.student_id) : undefined
+  const scoreRate = exam ? calculateScoreRate(exam.total_score, exam.total_full_score) : null
+  const rankPercentile = exam ? calculateRankPercentile(exam.rank_value, exam.participant_count) : null
+  const canEdit = Boolean(exam && !exam.deleted_at && (exam.visibility === 'shared' || exam.student_id === user?.id))
+
+  async function invalidate() {
+    await Promise.all([
+      queryClient.invalidateQueries({ queryKey: ['exam', examId] }),
+      queryClient.invalidateQueries({ queryKey: ['exams'] }),
+      queryClient.invalidateQueries({ queryKey: ['subject-scores'] }),
+      queryClient.invalidateQueries({ queryKey: ['storage-usage'] }),
+    ])
+  }
+
+  const noteMutation = useMutation({
+    mutationFn: async () => {
+      const content = (editingNote?.content ?? newNote).trim()
+      if (!content) throw new Error('请先写下一点心得。')
+      return editingNote ? updateNote(editingNote.id, content) : addNote(examId!, user!.id, content)
+    },
+    onSuccess: async () => { setNewNote(''); setEditingNote(null); await invalidate(); showToast('心得已保存', 'success') },
+    onError: (error) => showToast(error.message, 'error'),
+  })
+
+  const deleteMutation = useMutation({
+    mutationFn: () => softDeleteExam(exam!),
+    onSuccess: async () => { await invalidate(); showToast('已移入回收站，可在 30 天内恢复', 'success'); void navigate('/trash') },
+    onError: (error) => showToast(error.message, 'error'),
+  })
+  const restoreMutation = useMutation({
+    mutationFn: () => restoreExam(exam!),
+    onSuccess: async () => { await invalidate(); showToast('考试记录已恢复', 'success') },
+    onError: (error) => showToast(error.message, 'error'),
+  })
+
+  async function handleFiles(files: FileList | null) {
+    if (!files?.length || !exam || !user) return
+    const array = [...files]
+    let successCount = 0
+    try {
+      for (let index = 0; index < array.length; index += 1) {
+        setUploadStatus(`正在优化并上传 ${index + 1} / ${array.length}`)
+        await uploadExamImage({ file: array[index], exam, uploaderId: user.id, category, pageOrder: exam.attachments.length + index })
+        successCount += 1
+      }
+      showToast(`${array.length} 张图片已安全上传`, 'success')
+    } catch (error) {
+      const message = error instanceof Error ? error.message : '图片上传失败'
+      showToast(successCount ? `已成功上传 ${successCount} 张；下一张失败：${message}` : message, 'error')
+    } finally {
+      if (successCount) await invalidate()
+      setUploadStatus('')
+      if (fileInput.current) fileInput.current.value = ''
+    }
+  }
+
+  if (query.isLoading) return <LoadingScreen label="正在翻开这次考试…" />
+  if (query.error || !exam) return <ErrorState error={query.error ?? new Error('没有找到这场考试')} onRetry={() => void query.refetch()} />
+
+  return (
+    <div className="page detail-page">
+      <header className="detail-header">
+        <Link to="/exams" className="icon-button" aria-label="返回考试列表"><ArrowLeft /></Link>
+        <div className="detail-header__main"><div className="detail-header__badges"><span>{exam.kind === 'comprehensive' ? '综合考试' : '单科测验'}</span>{exam.visibility === 'private' ? <span><LockKeyhole size={13} />仅自己可见</span> : <span><Users size={13} />双方可见</span>}{exam.deleted_at ? <span className="badge-danger">回收站</span> : null}</div><h1>{exam.title}</h1><p><CalendarDays size={15} />{formatDate(exam.exam_date)} · {owner?.display_name ?? '成员'}的成绩{exam.category ? ` · ${exam.category}` : ''}</p></div>
+        <div className="detail-header__actions">
+          {exam.deleted_at ? <button className="button button--primary" type="button" onClick={() => restoreMutation.mutate()} disabled={restoreMutation.isPending}><RotateCcw size={16} />恢复</button> : <><Link className="button button--secondary" to={`/exams/${exam.id}/edit`}><Edit3 size={16} />共同编辑</Link><button className="icon-button icon-button--danger" type="button" onClick={() => { if (window.confirm('移入回收站后，30 天内可以恢复。确定继续吗？')) deleteMutation.mutate() }} aria-label="移入回收站"><Trash2 /></button></>}
+        </div>
+      </header>
+
+      {exam.deleted_at ? <div className="deleted-banner">这条记录已在 {formatDateTime(exam.deleted_at)} 移入回收站。恢复后才能继续编辑。</div> : null}
+
+      <section className="detail-metrics">
+        <article><span>总成绩</span><strong>{formatScore(exam.total_score, exam.total_full_score)}</strong><small>{scoreRate === null ? '得分率未计算' : `得分率 ${scoreRate.toFixed(1)}%`}</small></article>
+        <article><span>年级排名</span><strong>{exam.rank_value === null ? '未录入' : `第 ${exam.rank_value} 名`}</strong><small>{rankPercentile === null ? (exam.participant_count ? `共 ${exam.participant_count} 人` : '参考人数未录入') : `领先 ${(rankPercentile - 100 / (exam.participant_count ?? 1)).toFixed(1)}%`}</small></article>
+        <article><span>最近修改</span><strong>{profileMap.get(exam.updated_by)?.display_name ?? '成员'}</strong><small>{formatDateTime(exam.updated_at)} · v{exam.version}</small></article>
+      </section>
+
+      <div className="detail-columns">
+        <div className="detail-primary">
+          <section className="panel detail-section">
+            <div className="section-heading"><div><p className="eyebrow">分科成绩</p><h2>六科明细</h2></div></div>
+            {exam.subject_scores.length ? <div className="score-list">{exam.subject_scores.map((item) => <div key={item.id}><strong>{SUBJECT_LABELS[item.subject]}</strong><span>{formatScore(item.score, item.full_score)}</span><small>{item.rank_value ? `第 ${item.rank_value} 名` : '未录排名'}</small></div>)}</div> : <p className="muted-copy">这次考试没有录入分科成绩。</p>}
+          </section>
+
+          <section className="panel detail-section">
+            <div className="section-heading"><div><p className="eyebrow">试卷与答题卡</p><h2>图片资料</h2></div>{canEdit ? <div className="upload-actions"><select value={category} onChange={(event) => setCategory(event.target.value as AttachmentCategory)}>{Object.entries(ATTACHMENT_CATEGORY_LABELS).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select><button className="button button--secondary" type="button" onClick={() => fileInput.current?.click()} disabled={Boolean(uploadStatus)}>{uploadStatus ? <LoaderCircle className="spin" size={16} /> : <Upload size={16} />}{uploadStatus || '上传图片'}</button><input ref={fileInput} hidden type="file" accept="image/jpeg,image/png,image/webp,.heic,.heif" multiple onChange={(event) => void handleFiles(event.target.files)} /></div> : null}</div>
+            {exam.attachments.length ? <div className="attachment-grid">{exam.attachments.map((attachment) => <AttachmentTile key={attachment.id} attachment={attachment} canEdit={canEdit} onDelete={() => { if (window.confirm('这张图片将随记录保留 30 天后永久删除。')) void softDeleteAttachment(attachment, user!.id).then(invalidate).then(() => showToast('图片已移入回收状态', 'success')).catch((error: Error) => showToast(error.message, 'error')) }} />)}</div> : <div className="empty-inline"><ImagePlus size={26} /><div><strong>还没有图片</strong><p>上传前会自动压缩、纠正方向并移除 EXIF 信息。</p></div>{canEdit ? <button className="button button--secondary" type="button" onClick={() => fileInput.current?.click()}>选择图片</button> : null}</div>}
+          </section>
+
+          <section className="panel detail-section">
+            <div className="section-heading"><div><p className="eyebrow">心得时间线</p><h2>当时怎么想</h2></div></div>
+            {canEdit ? <div className="note-composer"><span className={`avatar avatar--${profileMap.get(user!.id)?.color_key ?? 'sage'}`}>{profileMap.get(user!.id)?.display_name.slice(0, 1)}</span><div><textarea value={editingNote?.content ?? newNote} onChange={(event) => editingNote ? setEditingNote({ ...editingNote, content: event.target.value }) : setNewNote(event.target.value)} placeholder="做得好的、失误原因、下一步行动……" maxLength={4000} /><div><small>{(editingNote?.content ?? newNote).length} / 4000</small>{editingNote ? <button type="button" className="button button--ghost" onClick={() => setEditingNote(null)}>取消编辑</button> : null}<button className="button button--primary" type="button" onClick={() => noteMutation.mutate()} disabled={noteMutation.isPending}><MessageSquarePlus size={16} />{editingNote ? '保存修改' : '添加心得'}</button></div></div></div> : null}
+            {exam.exam_notes.length ? <div className="notes-timeline">{exam.exam_notes.map((note) => { const author = profileMap.get(note.author_id); const mine = note.author_id === user?.id; return <article key={note.id}><span className={`avatar avatar--${author?.color_key ?? 'sage'}`}>{author?.display_name.slice(0, 1) ?? '?'}</span><div><header><strong>{author?.display_name ?? '成员'}</strong><time>{formatDateTime(note.created_at)}{note.updated_at !== note.created_at ? ' · 已编辑' : ''}</time></header><p>{note.content}</p>{mine && canEdit ? <footer><button type="button" onClick={() => setEditingNote(note)}>编辑</button><button type="button" onClick={() => { if (window.confirm('确定删除这条心得吗？')) void deleteNote(note.id).then(invalidate).catch((error: Error) => showToast(error.message, 'error')) }}>删除</button></footer> : null}</div></article> })}</div> : <p className="muted-copy">还没有心得。写下此刻的判断，未来回看会更有意义。</p>}
+          </section>
+        </div>
+
+        <aside className="detail-side">
+          <section className="panel detail-section audit-panel"><div className="section-heading"><div><p className="eyebrow">协作记录</p><h2>谁改了什么</h2></div><History size={19} /></div>{exam.audit_events.length ? <ol>{exam.audit_events.map((event) => <li key={event.id}><span className={`avatar avatar--small avatar--${profileMap.get(event.actor_id)?.color_key ?? 'sage'}`}>{profileMap.get(event.actor_id)?.display_name.slice(0, 1) ?? '?'}</span><div><p><strong>{profileMap.get(event.actor_id)?.display_name ?? '成员'}</strong>{auditDescription(event)}</p><time>{formatDateTime(event.created_at)}</time></div></li>)}</ol> : <p className="muted-copy">暂无修改记录。</p>}</section>
+        </aside>
+      </div>
+    </div>
+  )
+}
