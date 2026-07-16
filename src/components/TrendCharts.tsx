@@ -3,14 +3,17 @@ import { LineChart } from 'echarts/charts'
 import { AriaComponent, DataZoomComponent, GridComponent, LegendComponent, TooltipComponent } from 'echarts/components'
 import * as echarts from 'echarts/core'
 import { CanvasRenderer } from 'echarts/renderers'
-import ReactEChartsCore from 'echarts-for-react/lib/core'
+import ReactEChartsCoreImport from 'echarts-for-react/lib/core'
 import { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useTheme } from '../contexts/ThemeContext'
+import { unwrapDefaultExport } from '../lib/module'
 import { defaultScoreDisplayMode, deriveTrendPoints, type ExamTrendRecord, type ScoreDisplayMode, type TrendMetric } from '../lib/score'
 import type { Exam, SubjectScore } from '../types/domain'
 
 echarts.use([LineChart, GridComponent, TooltipComponent, LegendComponent, DataZoomComponent, AriaComponent, CanvasRenderer])
+
+const ReactEChartsCore = unwrapDefaultExport<typeof ReactEChartsCoreImport>(ReactEChartsCoreImport)
 
 export const METRIC_LABELS: Record<TrendMetric, string> = {
   total: '总成绩', chinese: '语文', math: '数学', english: '英语', biology: '生物', chemistry: '化学', physics: '物理',
