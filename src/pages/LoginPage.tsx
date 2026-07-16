@@ -23,8 +23,8 @@ export function LoginPage() {
 
   async function handleSubmit(event: React.FormEvent) {
     event.preventDefault()
-    if (!selected || password.length < 16) {
-      showToast('请选择账号并输入至少 16 位口令。', 'error')
+    if (!selected || !password) {
+      showToast('请选择账号并输入口令。', 'error')
       return
     }
     setSubmitting(true)
@@ -81,7 +81,7 @@ export function LoginPage() {
           <label className="field">
             <span>口令</span>
             <div className="password-field">
-              <input autoComplete="current-password" type={showPassword ? 'text' : 'password'} value={password} onChange={(event) => setPassword(event.target.value)} placeholder="输入你的强口令" disabled={!selected || submitting} />
+              <input autoComplete="current-password" type={showPassword ? 'text' : 'password'} value={password} onChange={(event) => setPassword(event.target.value)} placeholder="输入你的口令" disabled={!selected || submitting} />
               <button type="button" onClick={() => setShowPassword((value) => !value)} aria-label={showPassword ? '隐藏口令' : '显示口令'}>{showPassword ? <EyeOff size={18} /> : <Eye size={18} />}</button>
             </div>
           </label>
