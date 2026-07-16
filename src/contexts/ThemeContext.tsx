@@ -58,8 +58,15 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
     const media = typeof window.matchMedia === 'function' ? window.matchMedia('(prefers-color-scheme: dark)') : null
     const update = () => setResolvedTheme(applyTheme(preference, media?.matches ?? false))
     update()
-    if (preference === 'system') media?.addEventListener('change', update)
-    return () => media?.removeEventListener('change', update)
+    if (preference === 'system' && media) {
+      if (typeof media.addEventListener === 'function') media.addEventListener('change', update)
+      else media.addListener(update)
+    }
+    return () => {
+      if (preference !== 'system' || !media) return
+      if (typeof media.removeEventListener === 'function') media.removeEventListener('change', update)
+      else media.removeListener(update)
+    }
   }, [preference])
 
   function setPreference(next: ThemePreference) {
