@@ -89,6 +89,16 @@ describe("score calculations", () => {
     expect(points.at(-1)).toMatchObject({ examId: "exam-4", score: null, rank: null });
   });
 
+  it("does not compare raw ranks when both participant ranges are known and differ", () => {
+    const points = deriveTrendPoints([
+      { id: "a", name: "第一次", examDate: "2026-01-01", kind: "comprehensive", rank: 20, participantCount: 100 },
+      { id: "b", name: "第二次", examDate: "2026-02-01", kind: "comprehensive", rank: 30, participantCount: 200 },
+    ], "total");
+
+    expect(points[1].rankChange).toBeNull();
+    expect(points[1].rankPercentileChange).toBeGreaterThan(0);
+  });
+
   it("sums only provided subject values for total-score prefilling", () => {
     expect(
       sumSubjectScores([

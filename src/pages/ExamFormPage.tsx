@@ -3,7 +3,9 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { LoadingScreen } from '../components/LoadingScreen'
+import { ErrorState } from '../components/ErrorState'
 import { useAuth } from '../contexts/AuthContext'
+import { useStudentScope } from '../contexts/StudentScopeContext'
 import { useToast } from '../contexts/ToastContext'
 import { getExamDetails, saveExam, uploadExamImage } from '../lib/api'
 import { DEFAULT_SUBJECT_FULL_SCORES, SUBJECT_LABELS } from '../lib/constants'
@@ -40,6 +42,22 @@ interface PendingAnswerSheet {
   id: string
   subject: SubjectCode
   file: File
+}
+
+export type FormSectionStatus = 'complete' | 'needs-attention' | 'optional'
+
+export interface FormSectionSummary {
+  id: 'basics' | 'results' | 'subjects' | 'attachments' | 'visibility'
+  label: string
+  status: FormSectionStatus
+  detail: string
+}
+
+export interface ExamFormSummary {
+  sections: FormSectionSummary[]
+  scoreRate: number | null
+  missingFields: string[]
+  pendingImageCount: number
 }
 
 export function emptySubjects(): Record<SubjectCode, SubjectField> {
@@ -81,6 +99,97 @@ function initialForm(studentId = ''): FormState {
     term: '',
     category: '',
     subjects: emptySubjects(),
+  }
+}
+
+export function deriveExamFormSummary(form: FormState, pendingImageCount: number, userId?: string): ExamFormSummary {
+  const missingFields: string[] = []
+  if (!form.studentId) missingFields.push('成绩所属人')
+  if (!form.title.trim()) missingFields.push('考试名称')
+  if (!form.examDate) missingFields.push('考试日期')
+  if (form.kind === 'single_subject' && !form.primarySubject) missingFields.push('测验科目')
+
+  const totalScore = optionalNumber(form.totalScore)
+  const totalFullScore = optionalNumber(form.totalFullScore)
+  const totalRank = optionalNumber(form.rankValue)
+  const totalParticipantCount = optionalNumber(form.participantCount)
+  if (totalScore !== null && totalFullScore === null) missingFields.push('总满分')
+  if (form.visibility === 'private' && form.studentId !== userId) missingFields.push('私密记录所属人')
+
+  const subjectRowsWithContent = form.kind === 'comprehensive'
+    ? SUBJECT_CODES.filter((subject) => {
+      const row = form.subjects[subject]
+      return row.score.trim() !== '' || row.rank.trim() !== '' || row.participantCount.trim() !== ''
+    })
+    : []
+  const incompleteSubjects = subjectRowsWithContent.filter((subject) => {
+    const row = form.subjects[subject]
+    return optionalNumber(row.score) !== null && optionalNumber(row.fullScore) === null
+  })
+  for (const subject of incompleteSubjects) missingFields.push(`${SUBJECT_LABELS[subject]}满分`)
+
+  const basicsComplete = Boolean(form.studentId && form.title.trim() && form.examDate && (form.kind !== 'single_subject' || form.primarySubject))
+  const totalHasContent = [form.totalScore, form.rankValue, form.participantCount].some((value) => value.trim() !== '')
+  const resultInvalid = [form.totalScore, form.totalFullScore, form.rankValue, form.participantCount].some(isInvalidNumber)
+    || (totalScore !== null && (totalFullScore === null || totalScore < 0 || totalScore > totalFullScore))
+    || (totalFullScore !== null && totalFullScore <= 0)
+    || (totalRank !== null && (!Number.isInteger(totalRank) || totalRank < 1))
+    || (totalParticipantCount !== null && (!Number.isInteger(totalParticipantCount) || totalParticipantCount < 1))
+    || (totalRank !== null && totalParticipantCount !== null && totalRank > totalParticipantCount)
+  const subjectInvalid = form.kind === 'comprehensive' && SUBJECT_CODES.some((subject) => {
+    const row = form.subjects[subject]
+    const score = optionalNumber(row.score)
+    const fullScore = optionalNumber(row.fullScore)
+    const rank = optionalNumber(row.rank)
+    const participantCount = optionalNumber(row.participantCount)
+    return [row.score, row.fullScore, row.rank, row.participantCount].some(isInvalidNumber)
+      || (score !== null && (fullScore === null || score < 0 || score > fullScore))
+      || (fullScore !== null && fullScore <= 0)
+      || (rank !== null && (!Number.isInteger(rank) || rank < 1))
+      || (participantCount !== null && (!Number.isInteger(participantCount) || participantCount < 1))
+      || (rank !== null && participantCount !== null && rank > participantCount)
+  })
+
+  const sections: FormSectionSummary[] = [
+    {
+      id: 'basics',
+      label: '基本信息',
+      status: basicsComplete ? 'complete' : 'needs-attention',
+      detail: basicsComplete ? '必填信息已完成' : '还有必填信息未完成',
+    },
+    {
+      id: 'results',
+      label: '成绩与排名',
+      status: resultInvalid ? 'needs-attention' : totalHasContent ? 'complete' : 'optional',
+      detail: resultInvalid ? '请检查分数与满分' : totalHasContent ? '已录入成绩信息' : '可以稍后补充',
+    },
+    {
+      id: 'subjects',
+      label: '分科成绩',
+      status: form.kind === 'single_subject' ? 'complete' : subjectInvalid ? 'needs-attention' : subjectRowsWithContent.length ? 'complete' : 'optional',
+      detail: form.kind === 'single_subject' ? '已合并在单科总成绩中' : subjectInvalid ? '请检查分科数据' : subjectRowsWithContent.length ? `已录入 ${subjectRowsWithContent.length} 科` : '可以稍后补充',
+    },
+    {
+      id: 'attachments',
+      label: '答题卡',
+      status: pendingImageCount > 0 ? 'complete' : 'optional',
+      detail: pendingImageCount > 0 ? `待上传 ${pendingImageCount} 张` : '本次未选择图片',
+    },
+    {
+      id: 'visibility',
+      label: '可见范围',
+      status: form.visibility === 'private' && form.studentId !== userId ? 'needs-attention' : 'complete',
+      detail: form.visibility === 'shared' ? '双方可见' : form.studentId === userId ? '仅自己可见' : '私密记录只能属于自己',
+    },
+  ]
+
+  return {
+    sections,
+    scoreRate: totalScore !== null && totalFullScore !== null && totalFullScore > 0 && totalScore >= 0 && totalScore <= totalFullScore
+      ? (totalScore / totalFullScore) * 100
+      : null,
+    missingFields: [...new Set(missingFields)],
+    pendingImageCount,
   }
 }
 
@@ -139,20 +248,25 @@ export function ExamFormPage() {
   const { examId } = useParams()
   const isEditing = Boolean(examId)
   const { user, profile, profiles, membership } = useAuth()
+  const { studentId: scopedStudentId } = useStudentScope()
   const { showToast } = useToast()
   const navigate = useNavigate()
   const queryClient = useQueryClient()
-  const [form, setForm] = useState<FormState>(() => initialForm(profile?.id))
+  const [form, setForm] = useState<FormState>(() => initialForm(scopedStudentId || profile?.id))
   const [autoTotal, setAutoTotal] = useState(true)
   const [pendingSubject, setPendingSubject] = useState<SubjectCode>('math')
   const [pendingAnswerSheets, setPendingAnswerSheets] = useState<PendingAnswerSheet[]>([])
   const [uploadStatus, setUploadStatus] = useState('')
   const answerSheetInput = useRef<HTMLInputElement>(null)
+  const studentSelectionTouched = useRef(false)
   const detailQuery = useQuery({ queryKey: ['exam', examId], queryFn: () => getExamDetails(examId!), enabled: isEditing })
 
   useEffect(() => {
-    if (!isEditing && profile?.id && !form.studentId) setForm((current) => ({ ...current, studentId: profile.id }))
-  }, [form.studentId, isEditing, profile?.id])
+    const defaultStudentId = scopedStudentId || profile?.id
+    if (!isEditing && defaultStudentId && !studentSelectionTouched.current) {
+      setForm((current) => current.studentId === defaultStudentId ? current : ({ ...current, studentId: defaultStudentId }))
+    }
+  }, [isEditing, profile?.id, scopedStudentId])
 
   useEffect(() => {
     const exam = detailQuery.data
@@ -312,20 +426,42 @@ export function ExamFormPage() {
   })
 
   if (detailQuery.isLoading) return <LoadingScreen label="正在准备考试记录…" />
-  if (detailQuery.error) return <div className="page"><p className="form-error">{detailQuery.error.message}</p></div>
+  if (detailQuery.error) return <div className="page"><ErrorState error={detailQuery.error} onRetry={() => void detailQuery.refetch()} /></div>
 
   const totalDiff = subjectSummaryComplete && optionalNumber(form.totalScore) !== null && Math.abs((optionalNumber(form.totalScore) ?? 0) - subjectSum) > 0.001
+  const formSummary = deriveExamFormSummary(form, pendingAnswerSheets.length, user?.id)
+  const readySectionCount = formSummary.sections.filter((section) => section.status !== 'needs-attention').length
+  const sectionStatusLabel: Record<FormSectionStatus, string> = {
+    complete: '已完成',
+    'needs-attention': '待处理',
+    optional: '可选',
+  }
 
   return (
     <div className="page form-page">
       <header className="form-page__header"><Link to={examId ? `/exams/${examId}` : '/exams'} className="icon-button" aria-label="返回"><ArrowLeft /></Link><div><p className="eyebrow">{isEditing ? '共同编辑' : '新的记录'}</p><h1>{isEditing ? '编辑考试' : '添加一场考试'}</h1></div><button className="button button--primary" type="button" disabled={saveMutation.isPending} onClick={() => saveMutation.mutate()}>{saveMutation.isPending ? <LoaderCircle className="spin" size={17} /> : <Save size={17} />}{uploadStatus || (saveMutation.isPending ? '保存中…' : '保存')}</button></header>
 
-      <div className="form-layout">
-        <section className="panel form-section">
-          <div className="form-section__heading"><span>1</span><div><h2>这是一场什么考试？</h2><p>先写下基本信息，成绩可以之后再补。</p></div></div>
+      <div className="form-workspace">
+        <nav className="form-section-nav" aria-label="考试表单章节">
+          <p className="eyebrow">填写进度</p>
+          <ol>
+            {formSummary.sections.map((section, index) => (
+              <li key={section.id}>
+                <button type="button" onClick={() => document.getElementById(`exam-section-${section.id}`)?.scrollIntoView({ block: 'start' })} data-status={section.status}>
+                  <span>{index + 1}</span>
+                  <span><strong>{section.label}</strong><small>{sectionStatusLabel[section.status]}</small></span>
+                </button>
+              </li>
+            ))}
+          </ol>
+        </nav>
+
+        <div className="form-layout form-workspace__main">
+        <section id="exam-section-basics" className="panel form-section" aria-labelledby="exam-section-basics-title">
+          <div className="form-section__heading"><span>1</span><div><h2 id="exam-section-basics-title">这是一场什么考试？</h2><p>先写下基本信息，成绩可以之后再补。</p></div></div>
           <div className="form-grid">
             <label className="field field--span-2"><span>考试名称 *</span><input value={form.title} onChange={(event) => setForm({ ...form, title: event.target.value })} placeholder="例如：高二上学期期中考试" maxLength={80} /></label>
-            <label className="field"><span>成绩属于 *</span><select value={form.studentId} disabled={isEditing} onChange={(event) => setForm({ ...form, studentId: event.target.value })}>{profiles.map((item) => <option key={item.id} value={item.id}>{item.display_name}</option>)}</select>{isEditing ? <small>创建后不能更改成绩所属人。</small> : null}</label>
+            <label className="field"><span>成绩属于 *</span><select value={form.studentId} disabled={isEditing} onChange={(event) => { studentSelectionTouched.current = true; setForm({ ...form, studentId: event.target.value }) }}>{profiles.map((item) => <option key={item.id} value={item.id}>{item.display_name}</option>)}</select>{isEditing ? <small>创建后不能更改成绩所属人。</small> : null}</label>
             <label className="field"><span>考试日期 *</span><input type="date" value={form.examDate} onChange={(event) => setForm({ ...form, examDate: event.target.value })} /></label>
             <label className="field"><span>考试类型</span><select value={form.kind} onChange={(event) => changeExamKind(event.target.value as ExamKind)}><option value="comprehensive">综合考试</option><option value="single_subject">单科测验</option></select></label>
             {form.kind === 'single_subject' ? <label className="field"><span>测验科目</span><select value={form.primarySubject} onChange={(event) => changePrimarySubject(event.target.value as SubjectCode)}>{SUBJECT_CODES.map((subject) => <option key={subject} value={subject}>{SUBJECT_LABELS[subject]}</option>)}</select></label> : null}
@@ -335,8 +471,8 @@ export function ExamFormPage() {
           </div>
         </section>
 
-        <section className="panel form-section">
-          <div className="form-section__heading"><span>2</span><div><h2>{form.kind === 'single_subject' ? `${SUBJECT_LABELS[form.primarySubject]}成绩与排名` : '总成绩与排名'}</h2><p>不知道的项目可以留空，不会按 0 处理。</p></div></div>
+        <section id="exam-section-results" className="panel form-section" aria-labelledby="exam-section-results-title">
+          <div className="form-section__heading"><span>2</span><div><h2 id="exam-section-results-title">{form.kind === 'single_subject' ? `${SUBJECT_LABELS[form.primarySubject]}成绩与排名` : '总成绩与排名'}</h2><p>不知道的项目可以留空，不会按 0 处理。</p></div></div>
           <div className="form-grid">
             <label className="field"><span>{form.kind === 'single_subject' ? '得分' : '总得分'}</span><input inputMode="decimal" value={form.totalScore} onChange={(event) => { setAutoTotal(false); setForm({ ...form, totalScore: event.target.value }) }} placeholder="例如 612" /></label>
             <label className="field"><span>{form.kind === 'single_subject' ? '满分' : '总满分'}</span><input inputMode="decimal" value={form.totalFullScore} onChange={(event) => { setAutoTotal(false); setForm({ ...form, totalFullScore: event.target.value }) }} placeholder="例如 750" /></label>
@@ -346,17 +482,19 @@ export function ExamFormPage() {
           </div>
         </section>
 
-        {form.kind === 'comprehensive' ? <section className="panel form-section form-section--wide">
-          <div className="form-section__heading"><span>3</span><div><h2>可选分科成绩</h2><p>填写任意科目后，系统会自动汇总总分；你仍可手动调整。</p></div></div>
-          <div className="subject-table" role="table" aria-label="分科成绩">
-            <div className="subject-table__head" role="row"><span>科目</span><span>得分</span><span>满分</span><span>单科排名</span><span>参考人数</span></div>
-            {SUBJECT_CODES.map((subject) => <div className="subject-table__row" role="row" key={subject}><strong>{SUBJECT_LABELS[subject]}</strong><label className="subject-table__cell"><span>得分</span><input aria-label={`${SUBJECT_LABELS[subject]}得分`} inputMode="decimal" value={form.subjects[subject].score} onChange={(event) => updateSubject(subject, 'score', event.target.value)} placeholder="—" /></label><label className="subject-table__cell"><span>满分</span><input aria-label={`${SUBJECT_LABELS[subject]}满分`} inputMode="decimal" value={form.subjects[subject].fullScore} onChange={(event) => updateSubject(subject, 'fullScore', event.target.value)} placeholder="—" /></label><label className="subject-table__cell"><span>单科排名</span><input aria-label={`${SUBJECT_LABELS[subject]}排名`} inputMode="numeric" value={form.subjects[subject].rank} onChange={(event) => updateSubject(subject, 'rank', event.target.value)} placeholder="—" /></label><label className="subject-table__cell"><span>参考人数</span><input aria-label={`${SUBJECT_LABELS[subject]}参考人数`} inputMode="numeric" value={form.subjects[subject].participantCount} onChange={(event) => updateSubject(subject, 'participantCount', event.target.value)} placeholder="—" /></label></div>)}
-          </div>
-          {scoredSubjectCount ? <div className={`sum-hint${totalDiff || !subjectSummaryComplete ? ' sum-hint--warning' : ''}`}><Calculator size={18} /><span>{subjectSummaryComplete ? `分科合计：${subjectSum} / ${subjectFullSum}${totalDiff ? '，与手动总分不同' : '，已同步到总分'}` : `有 ${unpairedSubjectCount} 科填写得分后缺少满分，未自动汇总得分`}</span>{subjectSummaryComplete && (totalDiff || !autoTotal) ? <button type="button" onClick={applySubjectSum}>使用分科合计</button> : subjectSummaryComplete ? <Check size={17} /> : <Info size={17} />}</div> : null}
-        </section> : null}
+        <section id="exam-section-subjects" className="panel form-section form-section--wide" aria-labelledby="exam-section-subjects-title">
+          <div className="form-section__heading"><span>3</span><div><h2 id="exam-section-subjects-title">可选分科成绩</h2><p>{form.kind === 'comprehensive' ? '填写任意科目后，系统会自动汇总总分；你仍可手动调整。' : '单科测验的成绩已在上一节统一填写。'}</p></div></div>
+          {form.kind === 'comprehensive' ? <>
+            <div className="subject-table" role="table" aria-label="分科成绩">
+              <div className="subject-table__head" role="row"><span>科目</span><span>得分</span><span>满分</span><span>单科排名</span><span>参考人数</span></div>
+              {SUBJECT_CODES.map((subject) => <div className="subject-table__row" role="row" key={subject}><strong>{SUBJECT_LABELS[subject]}</strong><label className="subject-table__cell"><span>得分</span><input aria-label={`${SUBJECT_LABELS[subject]}得分`} inputMode="decimal" value={form.subjects[subject].score} onChange={(event) => updateSubject(subject, 'score', event.target.value)} placeholder="—" /></label><label className="subject-table__cell"><span>满分</span><input aria-label={`${SUBJECT_LABELS[subject]}满分`} inputMode="decimal" value={form.subjects[subject].fullScore} onChange={(event) => updateSubject(subject, 'fullScore', event.target.value)} placeholder="—" /></label><label className="subject-table__cell"><span>单科排名</span><input aria-label={`${SUBJECT_LABELS[subject]}排名`} inputMode="numeric" value={form.subjects[subject].rank} onChange={(event) => updateSubject(subject, 'rank', event.target.value)} placeholder="—" /></label><label className="subject-table__cell"><span>参考人数</span><input aria-label={`${SUBJECT_LABELS[subject]}参考人数`} inputMode="numeric" value={form.subjects[subject].participantCount} onChange={(event) => updateSubject(subject, 'participantCount', event.target.value)} placeholder="—" /></label></div>)}
+            </div>
+            {scoredSubjectCount ? <div className={`sum-hint${totalDiff || !subjectSummaryComplete ? ' sum-hint--warning' : ''}`}><Calculator size={18} /><span>{subjectSummaryComplete ? `分科合计：${subjectSum} / ${subjectFullSum}${totalDiff ? '，与手动总分不同' : '，已同步到总分'}` : `有 ${unpairedSubjectCount} 科填写得分后缺少满分，未自动汇总得分`}</span>{subjectSummaryComplete && (totalDiff || !autoTotal) ? <button type="button" onClick={applySubjectSum}>使用分科合计</button> : subjectSummaryComplete ? <Check size={17} /> : <Info size={17} />}</div> : null}
+          </> : <div className="form-section__not-applicable"><Check size={18} /><span><strong>{SUBJECT_LABELS[form.primarySubject]}单科记录</strong><small>无需重复填写分科表。</small></span></div>}
+        </section>
 
-        <section className="panel form-section form-section--wide">
-          <div className="form-section__heading"><span>4</span><div><h2>单科答题卡（可选）</h2><p>现在选择图片，保存考试后会自动压缩并上传。</p></div></div>
+        <section id="exam-section-attachments" className="panel form-section form-section--wide" aria-labelledby="exam-section-attachments-title">
+          <div className="form-section__heading"><span>4</span><div><h2 id="exam-section-attachments-title">单科答题卡（可选）</h2><p>现在选择图片，保存考试后会自动压缩并上传。</p></div></div>
           <div className="answer-sheet-picker">
             {form.kind === 'comprehensive' ? <label className="field"><span>所属科目</span><select value={pendingSubject} onChange={(event) => setPendingSubject(event.target.value as SubjectCode)}>{SUBJECT_CODES.map((subject) => <option key={subject} value={subject}>{SUBJECT_LABELS[subject]}</option>)}</select></label> : <div className="answer-sheet-picker__subject"><span>所属科目</span><strong>{SUBJECT_LABELS[form.primarySubject]}</strong></div>}
             <button className="button button--secondary" type="button" onClick={() => answerSheetInput.current?.click()}><Upload size={16} />选择答题卡图片</button>
@@ -365,14 +503,48 @@ export function ExamFormPage() {
           {pendingAnswerSheets.length ? <div className="pending-answer-sheets">{pendingAnswerSheets.map((item) => <div key={item.id}><ImagePlus size={18} /><span><strong>{SUBJECT_LABELS[item.subject]}答题卡</strong><small>{item.file.name}</small></span><button type="button" aria-label={`移除${item.file.name}`} onClick={() => setPendingAnswerSheets((current) => current.filter((candidate) => candidate.id !== item.id))}><Trash2 size={16} /></button></div>)}</div> : <p className="muted-copy answer-sheet-empty">还没有选择图片；支持 JPG、PNG、WebP、HEIC/HEIF，可一次选择多张。</p>}
         </section>
 
-        <section className="panel form-section form-section--wide">
-          <div className="form-section__heading"><span>5</span><div><h2>谁可以看到？</h2><p>默认双方共享；私密记录只能创建给自己。</p></div></div>
+        <section id="exam-section-visibility" className="panel form-section form-section--wide" aria-labelledby="exam-section-visibility-title">
+          <div className="form-section__heading"><span>5</span><div><h2 id="exam-section-visibility-title">谁可以看到？</h2><p>默认双方共享；私密记录只能创建给自己。</p></div></div>
           <div className="visibility-options">
-            <button type="button" className={form.visibility === 'shared' ? 'visibility-option visibility-option--active' : 'visibility-option'} onClick={() => setForm({ ...form, visibility: 'shared' })}><Users /><span><strong>双方可见</strong><small>两个人都能查看和共同编辑</small></span>{form.visibility === 'shared' ? <Check /> : null}</button>
-            <button type="button" disabled={isEditing && form.studentId !== user?.id} className={form.visibility === 'private' ? 'visibility-option visibility-option--active' : 'visibility-option'} onClick={() => setForm({ ...form, visibility: 'private', studentId: isEditing ? form.studentId : (user?.id ?? form.studentId) })}><LockKeyhole /><span><strong>仅自己可见</strong><small>{isEditing && form.studentId !== user?.id ? '只有成绩所属人可以转为私密' : '只有当前账号可以查看和维护'}</small></span>{form.visibility === 'private' ? <Check /> : null}</button>
+            <button type="button" aria-pressed={form.visibility === 'shared'} className={form.visibility === 'shared' ? 'visibility-option visibility-option--active' : 'visibility-option'} onClick={() => setForm({ ...form, visibility: 'shared' })}><Users /><span><strong>双方可见</strong><small>两个人都能查看和共同编辑</small></span>{form.visibility === 'shared' ? <Check /> : null}</button>
+            <button type="button" aria-pressed={form.visibility === 'private'} disabled={isEditing && form.studentId !== user?.id} className={form.visibility === 'private' ? 'visibility-option visibility-option--active' : 'visibility-option'} onClick={() => { studentSelectionTouched.current = true; setForm({ ...form, visibility: 'private', studentId: isEditing ? form.studentId : (user?.id ?? form.studentId) }) }}><LockKeyhole /><span><strong>仅自己可见</strong><small>{isEditing && form.studentId !== user?.id ? '只有成绩所属人可以转为私密' : '只有当前账号可以查看和维护'}</small></span>{form.visibility === 'private' ? <Check /> : null}</button>
           </div>
           <div className="privacy-hint"><Info size={16} />共享后，对方仍可能截图或下载已看到的内容。</div>
         </section>
+        </div>
+
+        <aside className="form-live-summary" aria-labelledby="form-live-summary-title" aria-live="polite" aria-atomic="false">
+          <header>
+            <p className="eyebrow">实时摘要</p>
+            <h2 id="form-live-summary-title">保存前检查</h2>
+          </header>
+          <div className="form-live-summary__progress">
+            <span><strong>{readySectionCount}</strong> / 5 节已就绪</span>
+            <progress value={readySectionCount} max={5}>{readySectionCount} / 5</progress>
+          </div>
+          <div className="form-live-summary__score">
+            <span>当前得分率</span>
+            <strong>{formSummary.scoreRate === null ? '—' : `${formSummary.scoreRate.toFixed(1)}%`}</strong>
+            <small>{formSummary.scoreRate === null ? '填写有效得分与满分后计算' : `${form.totalScore} / ${form.totalFullScore}`}</small>
+          </div>
+          <ol className="form-live-summary__sections">
+            {formSummary.sections.map((section) => (
+              <li key={section.id} data-status={section.status}>
+                <span aria-hidden="true">{section.status === 'complete' ? <Check size={15} /> : section.status === 'needs-attention' ? '!' : '·'}</span>
+                <span><strong>{section.label}</strong><small>{section.detail}</small></span>
+              </li>
+            ))}
+          </ol>
+          <div className="form-live-summary__meta">
+            <span><ImagePlus size={16} />待上传图片 <strong>{formSummary.pendingImageCount}</strong> 张</span>
+            {formSummary.missingFields.length ? (
+              <div className="form-live-summary__missing">
+                <strong>还需处理</strong>
+                <p>{formSummary.missingFields.join('、')}</p>
+              </div>
+            ) : <p className="form-live-summary__ready"><Check size={15} />必填信息已齐全</p>}
+          </div>
+        </aside>
       </div>
       <div className="form-actions"><Link className="button button--ghost" to={examId ? `/exams/${examId}` : '/exams'}>取消</Link><button className="button button--primary" type="button" disabled={saveMutation.isPending} onClick={() => saveMutation.mutate()}>{saveMutation.isPending ? <LoaderCircle className="spin" size={17} /> : <Save size={17} />}{uploadStatus || (saveMutation.isPending ? '保存中…' : '保存考试')}</button></div>
     </div>

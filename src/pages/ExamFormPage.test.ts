@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { buildSubjectScoreInputs, emptySubjects, validateExamForm, type FormState } from './ExamFormPage'
+import { buildSubjectScoreInputs, deriveExamFormSummary, emptySubjects, validateExamForm, type FormState } from './ExamFormPage'
 
 function form(overrides: Partial<FormState> = {}): FormState {
   return {
@@ -72,5 +72,25 @@ describe('exam form contract', () => {
     const subjects = emptySubjects()
     subjects.english = { score: '101', fullScore: '100', rank: '', participantCount: '' }
     expect(validateExamForm(form({ subjects }), 'user-1')).toMatch(/0 到满分/)
+  })
+
+  it('derives five live section states, score rate and pending image count', () => {
+    const summary = deriveExamFormSummary(form({ totalScore: '600', totalFullScore: '750' }), 3, 'user-1')
+    expect(summary.sections).toHaveLength(5)
+    expect(summary.sections.find((section) => section.id === 'basics')?.status).toBe('complete')
+    expect(summary.sections.find((section) => section.id === 'results')?.status).toBe('complete')
+    expect(summary.sections.find((section) => section.id === 'attachments')?.detail).toBe('待上传 3 张')
+    expect(summary.scoreRate).toBe(80)
+    expect(summary.missingFields).toEqual([])
+    expect(summary.pendingImageCount).toBe(3)
+  })
+
+  it('surfaces required and incomplete subject fields in the live summary', () => {
+    const subjects = emptySubjects()
+    subjects.math = { score: '88', fullScore: '', rank: '', participantCount: '' }
+    const summary = deriveExamFormSummary(form({ title: '', subjects }), 0, 'user-1')
+    expect(summary.sections.find((section) => section.id === 'basics')?.status).toBe('needs-attention')
+    expect(summary.sections.find((section) => section.id === 'subjects')?.status).toBe('needs-attention')
+    expect(summary.missingFields).toEqual(['考试名称', '数学满分'])
   })
 })

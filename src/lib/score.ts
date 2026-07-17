@@ -183,6 +183,7 @@ export function deriveTrendPoints(
   let previousScore: number | null = null;
   let previousRate: number | null = null;
   let previousRank: number | null = null;
+  let previousRankParticipantCount: number | null = null;
   let previousPercentile: number | null = null;
 
   return ordered.map(({ exam, value }) => {
@@ -206,7 +207,13 @@ export function deriveTrendPoints(
       scoreChange: nullableDifference(score, previousScore),
       scoreRateChange: nullableDifference(scoreRate, previousRate),
       rankChange:
-        rank === null || previousRank === null ? null : previousRank - rank,
+        rank === null || previousRank === null || (
+          participantCount !== null &&
+          previousRankParticipantCount !== null &&
+          participantCount !== previousRankParticipantCount
+        )
+          ? null
+          : previousRank - rank,
       rankPercentileChange: nullableDifference(
         rankPercentile,
         previousPercentile,
@@ -215,7 +222,10 @@ export function deriveTrendPoints(
 
     if (score !== null) previousScore = score;
     if (scoreRate !== null) previousRate = scoreRate;
-    if (rank !== null) previousRank = rank;
+    if (rank !== null) {
+      previousRank = rank;
+      previousRankParticipantCount = participantCount;
+    }
     if (rankPercentile !== null) previousPercentile = rankPercentile;
 
     return point;

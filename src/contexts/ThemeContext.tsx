@@ -32,7 +32,7 @@ export function applyTheme(preference: ThemePreference, prefersDark = systemPref
   const resolved = resolveTheme(preference, prefersDark)
   document.documentElement.dataset.theme = resolved
   document.documentElement.style.colorScheme = resolved
-  document.querySelector<HTMLMetaElement>('meta[name="theme-color"]')?.setAttribute('content', resolved === 'dark' ? '#121814' : '#f7f9f4')
+  document.querySelector<HTMLMetaElement>('meta[name="theme-color"]')?.setAttribute('content', resolved === 'dark' ? '#111713' : '#f6f5f0')
   return resolved
 }
 
