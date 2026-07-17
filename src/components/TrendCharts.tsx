@@ -19,6 +19,25 @@ export const METRIC_LABELS: Record<TrendMetric, string> = {
   total: '总成绩', chinese: '语文', math: '数学', english: '英语', biology: '生物', chemistry: '化学', physics: '物理',
 }
 
+function useMediaQuery(query: string): boolean {
+  const [matches, setMatches] = useState(() => (
+    typeof window !== 'undefined' && typeof window.matchMedia === 'function'
+      ? window.matchMedia(query).matches
+      : false
+  ))
+
+  useEffect(() => {
+    if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') return
+    const media = window.matchMedia(query)
+    const update = () => setMatches(media.matches)
+    update()
+    media.addEventListener('change', update)
+    return () => media.removeEventListener('change', update)
+  }, [query])
+
+  return matches
+}
+
 function toTrendRecords(exams: Exam[], scores: SubjectScore[]): ExamTrendRecord[] {
   const byExam = new Map<string, SubjectScore[]>()
   for (const score of scores) byExam.set(score.exam_id, [...(byExam.get(score.exam_id) ?? []), score])
@@ -42,17 +61,39 @@ function toTrendRecords(exams: Exam[], scores: SubjectScore[]): ExamTrendRecord[
   }))
 }
 
-export function TrendCharts({ exams, subjectScores, metric, accent = '#4f7c6a' }: {
+export interface TrendChartsProps {
   exams: Exam[]
   subjectScores: SubjectScore[]
   metric: TrendMetric
   accent?: string
-}) {
+  accentKey?: 'sage' | 'peach'
+  activeExamId?: string
+  onActiveExamChange?: (examId: string | undefined) => void
+  variant?: 'workspace' | 'compact'
+}
+
+export function TrendCharts({
+  exams,
+  subjectScores,
+  metric,
+  accent = '#3f6e5a',
+  accentKey,
+  activeExamId,
+  onActiveExamChange,
+  variant = 'workspace',
+}: TrendChartsProps) {
   const navigate = useNavigate()
   const { resolvedTheme } = useTheme()
+  const isCompactViewport = useMediaQuery('(max-width: 720px)')
+  const prefersReducedMotion = useMediaQuery('(prefers-reduced-motion: reduce)')
   const chartTheme = resolvedTheme === 'dark'
-    ? { muted: '#a3afa7', line: '#3d4942', split: '#2d3732', tooltip: 'rgba(28,36,32,.97)', ink: '#e8efe9' }
-    : { muted: '#66716a', line: '#dfe6de', split: '#eef1ec', tooltip: 'rgba(255,255,255,.97)', ink: '#24332c' }
+    ? { muted: '#aeb9b1', line: '#465149', split: '#29332d', tooltip: 'rgba(23,30,26,.98)', ink: '#eef3ef' }
+    : { muted: '#58655d', line: '#cbd3cc', split: '#e9ece7', tooltip: 'rgba(255,254,251,.98)', ink: '#17231d' }
+  const resolvedAccent = accentKey
+    ? accentKey === 'peach'
+      ? (resolvedTheme === 'dark' ? '#e19b7d' : '#a65f46')
+      : (resolvedTheme === 'dark' ? '#82af97' : '#3f6e5a')
+    : accent
   const points = useMemo(() => deriveTrendPoints(toTrendRecords(exams, subjectScores), metric), [exams, subjectScores, metric])
   const suggestedMode = useMemo(() => defaultScoreDisplayMode(points), [points])
   const [displayMode, setDisplayMode] = useState<ScoreDisplayMode>(suggestedMode)
@@ -65,9 +106,15 @@ export function TrendCharts({ exams, subjectScores, metric, accent = '#4f7c6a' }
   const labels = points.map((point) => point.examDate.slice(5).replace('-', '/'))
   const scoreValues = points.map((point) => displayMode === 'percentage' ? point.scoreRate : point.score)
   const option: EChartsOption = {
-    animationDuration: 550,
-    aria: { enabled: true, decal: { show: true } },
-    color: [accent, '#d58a63'],
+    animation: !prefersReducedMotion,
+    animationDuration: prefersReducedMotion ? 0 : 240,
+    animationDurationUpdate: prefersReducedMotion ? 0 : 180,
+    aria: {
+      enabled: true,
+      decal: { show: true },
+      description: `${METRIC_LABELS[metric]}趋势图，共 ${points.length} 条可显示记录。上方曲线显示${displayMode === 'percentage' ? '得分率' : '原始分'}，下方曲线显示年级排名。`,
+    },
+    color: [resolvedAccent, resolvedTheme === 'dark' ? '#e19b7d' : '#a65f46'],
     grid: [
       { left: 50, right: 26, top: 38, height: '29%' },
       { left: 50, right: 26, top: '59%', height: '27%' },
@@ -89,7 +136,17 @@ export function TrendCharts({ exams, subjectScores, metric, accent = '#4f7c6a' }
         const scoreDeltaText = scoreDelta === null ? '首次或无可比数据' : `${scoreDelta >= 0 ? '+' : ''}${scoreDelta.toFixed(1)}${displayMode === 'percentage' ? ' 个百分点' : ' 分'}`
         const percentileText = point.rankPercentile === null ? '' : ` · 百分位 ${point.rankPercentile.toFixed(1)}%`
         const rankText = point.rank === null ? '未录入' : `第 ${point.rank} 名${point.participantCount ? ` / ${point.participantCount} 人` : ''}${percentileText}`
-        const rankDeltaText = point.rankChange === null ? '首次或无可比数据' : point.rankChange === 0 ? '与上次持平' : point.rankChange > 0 ? `较上次提升 ${point.rankChange} 名` : `较上次下降 ${Math.abs(point.rankChange)} 名`
+        const rankDeltaText = point.rankPercentileChange !== null
+          ? point.rankPercentileChange === 0
+            ? '排名百分位与上次持平'
+            : `排名百分位较上次${point.rankPercentileChange > 0 ? '提升' : '下降'} ${Math.abs(point.rankPercentileChange).toFixed(1)} 个点`
+          : point.rankChange === null
+            ? '首次或无可比数据'
+            : point.rankChange === 0
+              ? '与上次持平'
+              : point.rankChange > 0
+                ? `较上次提升 ${point.rankChange} 名`
+                : `较上次下降 ${Math.abs(point.rankChange)} 名`
         return `${point.examName}\n${point.examDate}\n分数：${scoreText}（${rateText}）\n变化：${scoreDeltaText}\n排名：${rankText}\n排名变化：${rankDeltaText}`
       },
     },
@@ -103,21 +160,76 @@ export function TrendCharts({ exams, subjectScores, metric, accent = '#4f7c6a' }
     ],
     dataZoom: [{ type: 'inside', xAxisIndex: [0, 1], filterMode: 'none' }],
     series: [
-      { name: displayMode === 'percentage' ? '得分率' : '原始分', type: 'line', xAxisIndex: 0, yAxisIndex: 0, smooth: 0.25, connectNulls: false, symbolSize: 9, lineStyle: { width: 3 }, areaStyle: { opacity: 0.09 }, data: scoreValues.map((value, index) => ({ value, examId: points[index].examId })) },
-      { name: '年级排名', type: 'line', xAxisIndex: 1, yAxisIndex: 1, smooth: 0.25, connectNulls: false, symbol: 'diamond', symbolSize: 9, lineStyle: { width: 2.5 }, data: points.map((point) => ({ value: point.rank, examId: point.examId })) },
+      {
+        name: displayMode === 'percentage' ? '得分率' : '原始分',
+        type: 'line',
+        xAxisIndex: 0,
+        yAxisIndex: 0,
+        smooth: 0.25,
+        connectNulls: false,
+        symbolSize: 9,
+        lineStyle: { width: 3 },
+        areaStyle: { opacity: 0.07 },
+        emphasis: { focus: 'series' },
+        data: scoreValues.map((value, index) => {
+          const isActive = points[index].examId === activeExamId
+          return {
+            value,
+            examId: points[index].examId,
+            symbolSize: isActive ? 15 : 9,
+            itemStyle: isActive ? { borderColor: chartTheme.tooltip, borderWidth: 4 } : undefined,
+          }
+        }),
+      },
+      {
+        name: '年级排名',
+        type: 'line',
+        xAxisIndex: 1,
+        yAxisIndex: 1,
+        smooth: 0.25,
+        connectNulls: false,
+        symbol: 'diamond',
+        symbolSize: 9,
+        lineStyle: { width: 2.5 },
+        emphasis: { focus: 'series' },
+        data: points.map((point) => {
+          const isActive = point.examId === activeExamId
+          return {
+            value: point.rank,
+            examId: point.examId,
+            symbolSize: isActive ? 15 : 9,
+            itemStyle: isActive ? { borderColor: chartTheme.tooltip, borderWidth: 4 } : undefined,
+          }
+        }),
+      },
     ],
   }
 
   return (
-    <div className="trend-chart">
+    <div className={`trend-chart trend-chart--${variant}`} data-active-exam-id={activeExamId}>
       <div className="trend-chart__toolbar">
         <span>双指或滚轮可缩放时间范围</span>
         <div className="segmented segmented--small" role="group" aria-label="分数显示方式">
-          <button type="button" className={displayMode === 'raw' ? 'active' : ''} onClick={() => setDisplayMode('raw')}>原始分</button>
-          <button type="button" className={displayMode === 'percentage' ? 'active' : ''} onClick={() => setDisplayMode('percentage')}>得分率</button>
+          <button type="button" aria-pressed={displayMode === 'raw'} className={displayMode === 'raw' ? 'active' : ''} onClick={() => setDisplayMode('raw')}>原始分</button>
+          <button type="button" aria-pressed={displayMode === 'percentage'} className={displayMode === 'percentage' ? 'active' : ''} onClick={() => setDisplayMode('percentage')}>得分率</button>
         </div>
       </div>
-      <ReactEChartsCore echarts={echarts} option={option} style={{ height: 470 }} notMerge onEvents={{ click: (params: { data?: { examId?: string } }) => { if (params.data?.examId) void navigate(`/exams/${params.data.examId}`) } }} />
+      <ReactEChartsCore
+        echarts={echarts}
+        option={option}
+        className="trend-chart__canvas"
+        style={{ height: variant === 'workspace' && !isCompactViewport ? 360 : 280 }}
+        notMerge
+        onEvents={{
+          click: (params: { data?: { examId?: string } }) => {
+            if (params.data?.examId) void navigate(`/exams/${params.data.examId}`)
+          },
+          mouseover: (params: { data?: { examId?: string } }) => {
+            if (params.data?.examId) onActiveExamChange?.(params.data.examId)
+          },
+          mouseout: () => onActiveExamChange?.(undefined),
+        }}
+      />
     </div>
   )
 }

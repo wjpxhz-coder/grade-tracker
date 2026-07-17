@@ -1,5 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { MessageSquareText, RotateCcw, Trash2 } from 'lucide-react'
+import { Link } from 'react-router-dom'
 import { ErrorState } from '../components/ErrorState'
 import { LoadingScreen } from '../components/LoadingScreen'
 import { PageHeader } from '../components/PageHeader'
@@ -54,7 +55,7 @@ export function TrashPage() {
       {query.data?.length ? <><h2 className="trash-heading">已删除考试</h2><div className="trash-list">{query.data.map((exam) => <article className="trash-card" key={exam.id}><span className="trash-card__icon"><Trash2 /></span><div><h2>{exam.title}</h2><p>{profileMap.get(exam.student_id)?.display_name ?? '成员'} · {formatDate(exam.exam_date)}</p><small>删除于 {formatDateTime(exam.deleted_at!)} · 还可保留约 {daysUntilPurge(exam.deleted_at!)} 天</small></div><button className="button button--secondary" type="button" disabled={restore.isPending} onClick={() => restore.mutate(exam)}><RotateCcw size={16} />恢复</button></article>)}</div></> : null}
       {attachmentsQuery.data?.length ? <><h2 className="trash-heading">单独删除的图片</h2><div className="trash-list">{attachmentsQuery.data.map((attachment) => { const exam = examMap.get(attachment.exam_id); return <article className="trash-card" key={attachment.id}><span className="trash-card__icon"><Trash2 /></span><div><h2>{attachment.original_name}</h2><p>来自：{exam?.title ?? '考试记录'}</p><small>删除于 {formatDateTime(attachment.deleted_at!)} · 还可保留约 {daysUntilPurge(attachment.deleted_at!)} 天</small></div><button className="button button--secondary" type="button" onClick={() => void handleRestoreAttachment(attachment.id)}><RotateCcw size={16} />恢复图片</button></article> })}</div></> : null}
       {notesQuery.data?.length ? <><h2 className="trash-heading">已删除心得</h2><div className="trash-list">{notesQuery.data.map((note) => { const exam = examMap.get(note.exam_id); const canRestore = note.author_id === user?.id && !exam?.deleted_at; return <article className="trash-card" key={note.id}><span className="trash-card__icon"><MessageSquareText /></span><div><h2>{note.content.slice(0, 60)}{note.content.length > 60 ? '…' : ''}</h2><p>{profileMap.get(note.author_id)?.display_name ?? '成员'} · 来自：{exam?.title ?? '考试记录'}</p><small>删除于 {formatDateTime(note.deleted_at!)} · 还可保留约 {daysUntilPurge(note.deleted_at!)} 天</small></div>{canRestore ? <button className="button button--secondary" type="button" onClick={() => void handleRestoreNote(note.id)}><RotateCcw size={16} />恢复心得</button> : <span className="trash-card__reason">{exam?.deleted_at ? '请先恢复考试' : '仅作者可恢复'}</span>}</article> })}</div></> : null}
-      {!query.data?.length && !attachmentsQuery.data?.length && !notesQuery.data?.length ? <section className="empty-state"><Trash2 size={34} /><h2>回收站是空的</h2><p>误删的考试、图片和心得会在这里等待 30 天。</p></section> : null}
+      {!query.data?.length && !attachmentsQuery.data?.length && !notesQuery.data?.length ? <section className="empty-state"><Trash2 size={34} /><h2>回收站是空的</h2><p>误删的考试、图片和心得会在这里等待 30 天。</p><Link className="button button--secondary" to="/settings">返回数据与恢复</Link></section> : null}
     </div>
   )
 }

@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { ArrowLeft, CalendarDays, Edit3, History, ImagePlus, LoaderCircle, LockKeyhole, MessageSquarePlus, RotateCcw, Trash2, Trophy, Upload, Users } from 'lucide-react'
-import { useMemo, useRef, useState } from 'react'
+import { ArrowLeft, CalendarDays, Edit3, History, ImagePlus, LoaderCircle, LockKeyhole, MessageSquarePlus, RotateCcw, Trash2, Upload, Users, X } from 'lucide-react'
+import { useCallback, useEffect, useId, useMemo, useRef, useState, type RefObject } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { AttachmentTile } from '../components/AttachmentTile'
 import { ErrorState } from '../components/ErrorState'
@@ -8,11 +8,12 @@ import { LoadingScreen } from '../components/LoadingScreen'
 import { ProfileAvatar } from '../components/ProfileAvatar'
 import { useAuth } from '../contexts/AuthContext'
 import { useToast } from '../contexts/ToastContext'
-import { addNote, deleteNote, getExamDetails, restoreExam, softDeleteAttachment, softDeleteExam, updateNote, uploadExamImage } from '../lib/api'
+import { addNote, deleteNote, getExamDetails, listExams, listSubjectScores, restoreExam, softDeleteAttachment, softDeleteExam, updateNote, uploadExamImage } from '../lib/api'
 import { ATTACHMENT_CATEGORY_LABELS, SUBJECT_LABELS } from '../lib/constants'
 import { formatDate, formatDateTime, formatScore } from '../lib/format'
+import { deriveComparableExamInsights, type ComparableExamInsight } from '../lib/insights'
 import { calculateRankPercentile, calculateScoreRate, type SubjectCode } from '../lib/score'
-import type { AttachmentCategory, AuditEvent, ExamNote } from '../types/domain'
+import type { AttachmentCategory, AuditEvent, ExamNote, Profile } from '../types/domain'
 
 const AUDIT_FIELD_LABELS: Record<string, string> = {
   title: '名称', exam_date: '日期', kind: '类型', primary_subject: '科目',
@@ -42,6 +43,121 @@ function auditDescription(event: AuditEvent): string {
   return `${verb}${entity}`
 }
 
+function comparisonCopy(insight: ComparableExamInsight | undefined): { value: string; detail: string } {
+  if (!insight) return { value: '首次可比记录', detail: '有同类历史记录后显示变化' }
+  if (insight.scoreRateDelta !== null) {
+    const sign = insight.scoreRateDelta > 0 ? '+' : ''
+    return { value: `${sign}${insight.scoreRateDelta.toFixed(1)} 个百分点`, detail: `${insight.comparisonLabel} · 得分率` }
+  }
+  if (insight.rankPercentileDelta !== null) {
+    const sign = insight.rankPercentileDelta > 0 ? '+' : ''
+    return { value: `${sign}${insight.rankPercentileDelta.toFixed(1)} 个百分点`, detail: `${insight.comparisonLabel} · 排名百分位` }
+  }
+  if (insight.rankChange !== null) {
+    const sign = insight.rankChange > 0 ? '+' : ''
+    return { value: `${sign}${insight.rankChange} 名`, detail: `${insight.comparisonLabel} · 名次变化` }
+  }
+  return { value: insight.comparisonLabel, detail: '暂无足够数据计算变化' }
+}
+
+export function AuditDrawer({ open, onClose, events, profileMap, returnFocusRef }: {
+  open: boolean
+  onClose: () => void
+  events: AuditEvent[]
+  profileMap: Map<string, Profile>
+  returnFocusRef: RefObject<HTMLButtonElement | null>
+}) {
+  const titleId = useId()
+  const descriptionId = useId()
+  const drawerRef = useRef<HTMLElement>(null)
+  const closeButtonRef = useRef<HTMLButtonElement>(null)
+
+  useEffect(() => {
+    if (!open) return
+    const previousOverflow = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
+    closeButtonRef.current?.focus()
+
+    function handleKeyDown(event: KeyboardEvent) {
+      if (event.key === 'Escape') {
+        event.preventDefault()
+        onClose()
+        return
+      }
+      if (event.key !== 'Tab' || !drawerRef.current) return
+      const focusable = [...drawerRef.current.querySelectorAll<HTMLElement>(
+        'button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])',
+      )]
+      if (!focusable.length) {
+        event.preventDefault()
+        drawerRef.current.focus()
+        return
+      }
+      const first = focusable[0]
+      const last = focusable[focusable.length - 1]
+      if (!drawerRef.current.contains(document.activeElement)) {
+        event.preventDefault()
+        ;(event.shiftKey ? last : first).focus()
+        return
+      }
+      if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault()
+        last.focus()
+      } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault()
+        first.focus()
+      }
+    }
+
+    document.addEventListener('keydown', handleKeyDown)
+    return () => {
+      document.removeEventListener('keydown', handleKeyDown)
+      document.body.style.overflow = previousOverflow
+      returnFocusRef.current?.focus()
+    }
+  }, [onClose, open, returnFocusRef])
+
+  if (!open) return null
+
+  return (
+    <div className="audit-drawer-backdrop" onMouseDown={(event) => { if (event.target === event.currentTarget) onClose() }}>
+      <aside
+        ref={drawerRef}
+        className="audit-drawer"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby={titleId}
+        aria-describedby={descriptionId}
+        tabIndex={-1}
+      >
+        <header className="audit-drawer__header">
+          <div>
+            <p className="eyebrow">协作记录</p>
+            <h2 id={titleId}>活动记录</h2>
+            <p id={descriptionId}>按时间倒序显示这场考试的最近修改。</p>
+          </div>
+          <button ref={closeButtonRef} className="icon-button" type="button" onClick={onClose} aria-label="关闭活动记录"><X /></button>
+        </header>
+        <div className="audit-drawer__body">
+          {events.length ? (
+            <ol className="audit-list">
+              {events.map((event) => (
+                <li key={event.id}>
+                  <ProfileAvatar profile={profileMap.get(event.actor_id)} size="small" />
+                  <div>
+                    <p><strong>{profileMap.get(event.actor_id)?.display_name ?? '成员'}</strong>{auditDescription(event)}</p>
+                    <time dateTime={event.created_at}>{formatDateTime(event.created_at)}</time>
+                  </div>
+                </li>
+              ))}
+            </ol>
+          ) : <p className="muted-copy">暂无修改记录。</p>}
+        </div>
+      </aside>
+    </div>
+  )
+}
+
 export function ExamDetailPage() {
   const { examId } = useParams()
   const { user, profiles } = useAuth()
@@ -54,8 +170,27 @@ export function ExamDetailPage() {
   const [category, setCategory] = useState<AttachmentCategory>('answer_sheet')
   const [attachmentSubject, setAttachmentSubject] = useState<SubjectCode | ''>('')
   const [uploadStatus, setUploadStatus] = useState('')
+  const [auditOpen, setAuditOpen] = useState(false)
+  const auditButtonRef = useRef<HTMLButtonElement>(null)
+  const closeAudit = useCallback(() => setAuditOpen(false), [])
   const query = useQuery({ queryKey: ['exam', examId], queryFn: () => getExamDetails(examId!), enabled: Boolean(examId) })
   const exam = query.data
+  const historyQuery = useQuery({
+    queryKey: ['exams', exam?.student_id ?? 'detail-pending', 'active'],
+    queryFn: () => listExams({ studentId: exam!.student_id }),
+    enabled: Boolean(exam?.student_id),
+  })
+  const historyExamIds = historyQuery.data?.map((item) => item.id) ?? []
+  const historyScoresQuery = useQuery({
+    queryKey: ['subject-scores', ...historyExamIds],
+    queryFn: () => listSubjectScores(historyExamIds),
+    enabled: historyQuery.isSuccess,
+  })
+  const comparableInsight = useMemo(() => {
+    if (!exam || !historyQuery.data || !historyScoresQuery.data) return undefined
+    return deriveComparableExamInsights(historyQuery.data, historyScoresQuery.data).get(exam.id)
+  }, [exam, historyQuery.data, historyScoresQuery.data])
+  const comparison = comparisonCopy(comparableInsight)
   const profileMap = useMemo(() => new Map(profiles.map((profile) => [profile.id, profile])), [profiles])
   const owner = exam ? profileMap.get(exam.student_id) : undefined
   const scoreRate = exam ? calculateScoreRate(exam.total_score, exam.total_full_score) : null
@@ -129,23 +264,67 @@ export function ExamDetailPage() {
         <Link to="/exams" className="icon-button" aria-label="返回考试列表"><ArrowLeft /></Link>
         <div className="detail-header__main"><div className="detail-header__badges"><span>{exam.kind === 'comprehensive' ? '综合考试' : '单科测验'}</span>{exam.visibility === 'private' ? <span><LockKeyhole size={13} />仅自己可见</span> : <span><Users size={13} />双方可见</span>}{exam.deleted_at ? <span className="badge-danger">回收站</span> : null}</div><h1>{exam.title}</h1><p><CalendarDays size={15} />{formatDate(exam.exam_date)} · {owner?.display_name ?? '成员'}的成绩{exam.category ? ` · ${exam.category}` : ''}</p></div>
         <div className="detail-header__actions">
+          <button ref={auditButtonRef} className="button button--ghost" type="button" onClick={() => setAuditOpen(true)} aria-haspopup="dialog"><History size={16} />活动记录{exam.audit_events.length ? <span className="button__count">{exam.audit_events.length}</span> : null}</button>
           {exam.deleted_at ? <button className="button button--primary" type="button" onClick={() => restoreMutation.mutate()} disabled={restoreMutation.isPending}><RotateCcw size={16} />恢复</button> : <><Link className="button button--secondary" to={`/exams/${exam.id}/edit`}><Edit3 size={16} />共同编辑</Link><button className="icon-button icon-button--danger" type="button" onClick={() => { if (window.confirm('移入回收站后，30 天内可以恢复。确定继续吗？')) deleteMutation.mutate() }} aria-label="移入回收站"><Trash2 /></button></>}
         </div>
       </header>
 
       {exam.deleted_at ? <div className="deleted-banner">这条记录已在 {formatDateTime(exam.deleted_at)} 移入回收站。恢复后才能继续编辑。</div> : null}
 
-      <section className="detail-metrics">
-        <article><span>总成绩</span><strong>{formatScore(exam.total_score, exam.total_full_score)}</strong><small>{scoreRate === null ? '得分率未计算' : `得分率 ${scoreRate.toFixed(1)}%`}</small></article>
-        <article><span>年级排名</span><strong>{exam.rank_value === null ? '未录入' : `第 ${exam.rank_value} 名`}</strong><small>{rankPercentile === null ? (exam.participant_count ? `共 ${exam.participant_count} 人` : '参考人数未录入') : `领先 ${(rankPercentile - 100 / (exam.participant_count ?? 1)).toFixed(1)}%`}</small></article>
-        <article><span>最近修改</span><strong>{profileMap.get(exam.updated_by)?.display_name ?? '成员'}</strong><small>{formatDateTime(exam.updated_at)} · v{exam.version}</small></article>
+      <section className="detail-summary-band" aria-label="成绩摘要">
+        <div className="detail-summary-band__primary">
+          <span>总成绩</span>
+          <strong>{formatScore(exam.total_score, exam.total_full_score)}</strong>
+          <small>{scoreRate === null ? '得分率未计算' : `得分率 ${scoreRate.toFixed(1)}%`}</small>
+        </div>
+        <div className={`detail-summary-band__insight detail-summary-band__insight--${comparableInsight?.tone ?? 'neutral'}`}>
+          <span>可比变化</span>
+          <strong>{comparison.value}</strong>
+          <small>{comparison.detail}</small>
+        </div>
+        <div>
+          <span>年级排名</span>
+          <strong>{exam.rank_value === null ? '未录入' : `第 ${exam.rank_value} 名`}</strong>
+          <small>{rankPercentile === null ? (exam.participant_count ? `共 ${exam.participant_count} 人` : '参考人数未录入') : `排名百分位 ${rankPercentile.toFixed(1)}`}</small>
+        </div>
+        <div>
+          <span>最近修改</span>
+          <strong>{profileMap.get(exam.updated_by)?.display_name ?? '成员'}</strong>
+          <small>{formatDateTime(exam.updated_at)} · v{exam.version}</small>
+        </div>
       </section>
 
       <div className="detail-columns">
         <div className="detail-primary">
           <section className="panel detail-section">
             <div className="section-heading"><div><p className="eyebrow">分科成绩</p><h2>六科明细</h2></div></div>
-            {exam.subject_scores.length ? <div className="score-list">{exam.subject_scores.map((item) => <div key={item.id}><strong>{SUBJECT_LABELS[item.subject]}</strong><span>{formatScore(item.score, item.full_score)}</span><small>{item.rank_value ? `第 ${item.rank_value} 名` : '未录排名'}</small></div>)}</div> : <p className="muted-copy">这次考试没有录入分科成绩。</p>}
+            {exam.subject_scores.length ? (
+              <div className="subject-performance-list">
+                {exam.subject_scores.map((item) => {
+                  const itemRate = calculateScoreRate(item.score, item.full_score)
+                  return (
+                    <div className="subject-performance" key={item.id}>
+                      <div className="subject-performance__heading">
+                        <strong>{SUBJECT_LABELS[item.subject]}</strong>
+                        <span>得分 {formatScore(item.score, item.full_score)}</span>
+                      </div>
+                      <div className="subject-performance__meta">
+                        <span>{itemRate === null ? '得分率未计算' : `得分率 ${itemRate.toFixed(1)}%`}</span>
+                        <span>{item.rank_value === null ? '排名未录入' : `排名 第 ${item.rank_value} 名`}</span>
+                        {item.participant_count === null ? null : <span>参考 {item.participant_count} 人</span>}
+                      </div>
+                      {itemRate === null ? (
+                        <p className="subject-performance__missing">缺少有效得分或满分，未显示比例。</p>
+                      ) : (
+                        <div className="subject-performance__track" role="progressbar" aria-label={`${SUBJECT_LABELS[item.subject]}得分率`} aria-valuemin={0} aria-valuemax={100} aria-valuenow={Number(Math.min(100, Math.max(0, itemRate)).toFixed(1))}>
+                          <span style={{ width: `${Math.min(100, Math.max(0, itemRate))}%` }} />
+                        </div>
+                      )}
+                    </div>
+                  )
+                })}
+              </div>
+            ) : <p className="muted-copy">这次考试没有录入分科成绩。</p>}
           </section>
 
           <section className="panel detail-section">
@@ -160,10 +339,8 @@ export function ExamDetailPage() {
           </section>
         </div>
 
-        <aside className="detail-side">
-          <section className="panel detail-section audit-panel"><div className="section-heading"><div><p className="eyebrow">协作记录</p><h2>谁改了什么</h2></div><History size={19} /></div>{exam.audit_events.length ? <ol>{exam.audit_events.map((event) => <li key={event.id}><ProfileAvatar profile={profileMap.get(event.actor_id)} size="small" /><div><p><strong>{profileMap.get(event.actor_id)?.display_name ?? '成员'}</strong>{auditDescription(event)}</p><time>{formatDateTime(event.created_at)}</time></div></li>)}</ol> : <p className="muted-copy">暂无修改记录。</p>}</section>
-        </aside>
       </div>
+      <AuditDrawer open={auditOpen} onClose={closeAudit} events={exam.audit_events} profileMap={profileMap} returnFocusRef={auditButtonRef} />
     </div>
   )
 }

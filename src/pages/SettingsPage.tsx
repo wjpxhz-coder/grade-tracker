@@ -1,6 +1,7 @@
 import { useQuery } from '@tanstack/react-query'
-import { Archive, Camera, Database, Download, HardDrive, LoaderCircle, LogOut, Monitor, MoonStar, Palette, ShieldCheck, Sun, UserRound } from 'lucide-react'
+import { Archive, Camera, Database, Download, HardDrive, LoaderCircle, LogOut, Monitor, MoonStar, Palette, ShieldCheck, Sun, Trash2, UserRound } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
+import { Link } from 'react-router-dom'
 import { PageHeader } from '../components/PageHeader'
 import { ProfileAvatar } from '../components/ProfileAvatar'
 import { useAuth } from '../contexts/AuthContext'
@@ -193,6 +194,14 @@ export function SettingsPage() {
             <button type="button" aria-pressed={preference === 'system'} className={preference === 'system' ? 'theme-option theme-option--active' : 'theme-option'} onClick={() => setPreference('system' satisfies ThemePreference)}><Monitor /><span><strong>跟随系统</strong><small>随设备外观自动切换</small></span></button>
           </div>
           <p className="settings-note">选择会保存在当前浏览器中，不影响另一位成员的主题。</p>
+        </section>
+
+        <section className="panel settings-card settings-card--wide recovery-card">
+          <div className="settings-card__heading"><span><Trash2 /></span><div><h2>数据与恢复</h2><p>误删内容会在回收站保留 30 天。</p></div></div>
+          <div className="settings-action-row">
+            <div><strong>回收站</strong><p>查看并恢复已删除的考试、试卷图片和心得记录。</p></div>
+            <Link className="button button--secondary" to="/trash"><Trash2 size={16} />打开回收站</Link>
+          </div>
         </section>
 
         <section className="panel settings-card settings-card--wide">

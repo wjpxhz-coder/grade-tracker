@@ -4,6 +4,7 @@ import { AppErrorBoundary } from './components/AppErrorBoundary'
 import { AppShell } from './components/AppShell'
 import { LoadingScreen } from './components/LoadingScreen'
 import { AuthProvider, useAuth } from './contexts/AuthContext'
+import { StudentScopeProvider } from './contexts/StudentScopeContext'
 import { ToastProvider } from './contexts/ToastContext'
 import { ThemeProvider } from './contexts/ThemeContext'
 import { signOut } from './lib/api'
@@ -70,7 +71,7 @@ export default function App() {
         <QueryClientProvider client={queryClient}>
           <HashRouter>
             <ToastProvider>
-              <AuthProvider><AppRoutes /></AuthProvider>
+              <AuthProvider><StudentScopeProvider><AppRoutes /></StudentScopeProvider></AuthProvider>
             </ToastProvider>
           </HashRouter>
         </QueryClientProvider>
