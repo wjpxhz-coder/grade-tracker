@@ -10,6 +10,7 @@ import { METRIC_LABELS, TrendCharts } from '../components/TrendCharts'
 import { useAuth } from '../contexts/AuthContext'
 import { useExamData } from '../hooks/useExamData'
 import { calculateScoreRate, SUBJECT_CODES, type TrendMetric } from '../lib/score'
+import { getGreeting } from '../lib/greeting'
 
 export function DashboardPage() {
   const { profile, profiles } = useAuth()
@@ -29,7 +30,7 @@ export function DashboardPage() {
 
   return (
     <div className="page dashboard-page">
-      <PageHeader eyebrow="成长总览" title={`早上好，${profile?.display_name ?? '你'}`} description="每一次考试都是一页，不急着定义好坏，只诚实记录变化。" actions={<Link className="button button--primary" to="/exams/new"><Plus size={17} />添加考试</Link>} />
+      <PageHeader eyebrow="成长总览" title={`${getGreeting()}，${profile?.display_name ?? '你'}`} description="每一次考试都是一页，不急着定义好坏，只诚实记录变化。" actions={<Link className="button button--primary" to="/exams/new"><Plus size={17} />添加考试</Link>} />
       <PersonSwitch profiles={profiles} value={studentId} onChange={setStudentId} />
 
       <section className="summary-grid" aria-label="最近成绩概览">
