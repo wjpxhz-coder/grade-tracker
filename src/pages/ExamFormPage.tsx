@@ -65,7 +65,7 @@ export function emptySubjects(): Record<SubjectCode, SubjectField> {
     score: '',
     fullScore: String(DEFAULT_SUBJECT_FULL_SCORES[subject]),
     rank: '',
-    participantCount: '',
+    participantCount: '1400',
   }])) as Record<SubjectCode, SubjectField>
 }
 
@@ -80,7 +80,7 @@ function isInvalidNumber(value: string): boolean {
   return value.trim() !== '' && !Number.isFinite(Number(value))
 }
 
-function initialForm(studentId = ''): FormState {
+export function initialForm(studentId = ''): FormState {
   const now = new Date()
   const localDate = new Date(now.getTime() - now.getTimezoneOffset() * 60_000).toISOString().slice(0, 10)
   return {
@@ -92,7 +92,7 @@ function initialForm(studentId = ''): FormState {
     totalScore: '',
     totalFullScore: String(Object.values(DEFAULT_SUBJECT_FULL_SCORES).reduce((sum, value) => sum + value, 0)),
     rankValue: '',
-    participantCount: '',
+    participantCount: '1400',
     rankScope: 'overall',
     visibility: 'shared',
     academicYear: '',

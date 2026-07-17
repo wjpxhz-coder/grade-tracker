@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { buildSubjectScoreInputs, deriveExamFormSummary, emptySubjects, validateExamForm, type FormState } from './ExamFormPage'
+import { buildSubjectScoreInputs, deriveExamFormSummary, emptySubjects, initialForm, validateExamForm, type FormState } from './ExamFormPage'
 
 function form(overrides: Partial<FormState> = {}): FormState {
   return {
@@ -31,6 +31,11 @@ describe('exam form contract', () => {
     expect(subjects.biology.fullScore).toBe('100')
     expect(subjects.chemistry.fullScore).toBe('100')
     expect(subjects.physics.fullScore).toBe('100')
+  })
+
+  it('defaults total and subject reference counts to 1400 for new records', () => {
+    expect(initialForm().participantCount).toBe('1400')
+    expect(Object.values(emptySubjects()).every((subject) => subject.participantCount === '1400')).toBe(true)
   })
 
   it('allows a known scale with a missing score, but not a score without its scale', () => {
