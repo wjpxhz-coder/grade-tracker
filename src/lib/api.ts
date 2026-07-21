@@ -1,5 +1,7 @@
 import type { User } from '@supabase/supabase-js'
 import type {
+  AiAttachmentInsight,
+  AiImageAnalysisResult,
   Attachment,
   AttachmentCategory,
   AuditEvent,
@@ -24,6 +26,47 @@ function fail(message: string, cause?: unknown): never {
 
 function isVersionConflict(error: { message?: string; details?: string } | null): boolean {
   return Boolean(error && /version_conflict|expected=.*actual=/i.test(`${error.message ?? ''} ${error.details ?? ''}`))
+}
+
+const AI_ANALYSIS_ERROR_MESSAGES: Record<string, string> = {
+  invalid_json: '分析请求格式不正确，请刷新后重试。',
+  invalid_request: '请选择有效的考试图片后重试。',
+  too_many_attachments: '单批图片数量超过服务限制。',
+  unauthorized: '登录已失效，请重新登录后再分析。',
+  origin_not_allowed: '当前页面来源不允许调用 AI 分析。',
+  exam_forbidden: '你没有权限分析这场考试的图片。',
+  exam_not_found: '没有找到这场考试，可能已被删除。',
+  method_not_allowed: 'AI 分析服务暂不接受这个请求。',
+  server_not_configured: 'AI 分析服务尚未配置，请联系管理员。',
+  provider_error: 'AI 服务暂时不可用，请稍后重试。',
+  provider_auth_error: 'AI 服务认证配置无效，请联系管理员。',
+  provider_rate_limited: 'AI 服务当前繁忙，请稍后重试。',
+  provider_timeout: 'AI 分析等待超时，请稍后重试。',
+  provider_unreachable: '暂时无法连接 AI 服务，请稍后重试。',
+  provider_refusal: 'AI 未能分析这张图片，请检查图片内容后重试。',
+  provider_incomplete: 'AI 返回的摘要不完整，请稍后重试。',
+  invalid_provider_response: 'AI 返回内容无法保存，请稍后重试。',
+  storage_download_failed: '无法读取原始图片，请重新上传或稍后重试。',
+  invalid_image_size: '图片大小不符合分析要求，请重新上传后重试。',
+  summary_save_failed: '摘要保存失败，请稍后重试。',
+  invalid_attachment_selection: '所选图片无效或已被删除，请刷新后重试。',
+  internal_error: 'AI 分析服务发生内部错误，请稍后重试。',
+}
+
+export function aiAnalysisErrorMessage(codeOrMessage?: string): string {
+  if (!codeOrMessage) return 'AI 图片分析失败，请稍后重试。'
+  return AI_ANALYSIS_ERROR_MESSAGES[codeOrMessage] ?? codeOrMessage
+}
+
+async function readFunctionErrorCode(error: unknown): Promise<string | undefined> {
+  const context = (error as { context?: unknown } | null)?.context
+  if (!(context instanceof Response)) return undefined
+  try {
+    const payload = await context.clone().json() as { error?: unknown }
+    return typeof payload.error === 'string' ? payload.error : undefined
+  } catch {
+    return undefined
+  }
 }
 
 export async function listLoginProfiles(): Promise<LoginProfile[]> {
@@ -157,6 +200,38 @@ export async function getExamDetails(examId: string): Promise<ExamWithRelations>
     attachments: (attachmentsResult.data ?? []) as Attachment[],
     audit_events: (auditResult.data ?? []) as AuditEvent[],
   }
+}
+
+export async function listAiAttachmentInsights(examId: string): Promise<AiAttachmentInsight[]> {
+  const { data, error } = await supabase
+    .from('ai_attachment_insights')
+    .select('id, attachment_id, exam_id, sha256, model, prompt_version, title, summary, key_findings, confidence, details, usage, analyzed_by, created_at, updated_at')
+    .eq('exam_id', examId)
+    .order('updated_at', { ascending: false })
+  if (error) fail('无法读取 AI 图片摘要', error)
+  return (data ?? []) as AiAttachmentInsight[]
+}
+
+export async function analyzeExamImages(options: {
+  examId: string
+  attachmentIds?: string[]
+  force?: boolean
+}): Promise<AiImageAnalysisResult> {
+  const { data, error } = await supabase.functions.invoke('analyze-exam-images', {
+    body: {
+      examId: options.examId,
+      ...(options.attachmentIds ? { attachmentIds: options.attachmentIds } : {}),
+      ...(options.force ? { force: true } : {}),
+    },
+  })
+  if (error) {
+    const code = await readFunctionErrorCode(error)
+    throw new Error(aiAnalysisErrorMessage(code ?? error.message))
+  }
+  if (!data || typeof data !== 'object' || !Array.isArray((data as AiImageAnalysisResult).items)) {
+    throw new Error(aiAnalysisErrorMessage('invalid_provider_response'))
+  }
+  return data as AiImageAnalysisResult
 }
 
 export async function saveExam(input: ExamInput, expectedVersion?: number): Promise<Exam> {
