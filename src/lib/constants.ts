@@ -26,6 +26,10 @@ export const ATTACHMENT_CATEGORY_LABELS: Record<AttachmentCategory, string> = {
   other: '其他',
 }
 
+export const AI_IMAGE_ANALYSIS_MODEL = 'gpt-5.5'
+export const AI_IMAGE_ANALYSIS_PROMPT_VERSION = 'exam-image-summary-v1'
+export const AI_IMAGE_ANALYSIS_BATCH_SIZE = 4
+
 export const PROFILE_ACCENTS: Record<string, string> = {
   sage: '#4f7c6a',
   peach: '#c57c5d',

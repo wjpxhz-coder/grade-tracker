@@ -23,3 +23,8 @@ enabled = false
 # The function performs its own high-entropy x-cron-secret check. This avoids
 # depending on legacy JWT-shaped anon keys and supports current publishable keys.
 verify_jwt = false
+
+[functions.analyze-exam-images]
+# Browser preflight requests do not carry a JWT. The function validates the
+# bearer token with Auth itself, then uses that token for all RLS-protected reads.
+verify_jwt = false

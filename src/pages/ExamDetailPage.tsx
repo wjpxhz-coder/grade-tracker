@@ -2,6 +2,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { ArrowLeft, CalendarDays, Edit3, History, ImagePlus, LoaderCircle, LockKeyhole, MessageSquarePlus, RotateCcw, Trash2, Upload, Users, X } from 'lucide-react'
 import { useCallback, useEffect, useId, useMemo, useRef, useState, type RefObject } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
+import { AiImageAnalysisPanel } from '../components/AiImageAnalysisPanel'
 import { AttachmentTile } from '../components/AttachmentTile'
 import { ErrorState } from '../components/ErrorState'
 import { LoadingScreen } from '../components/LoadingScreen'
@@ -331,6 +332,8 @@ export function ExamDetailPage() {
             <div className="section-heading"><div><p className="eyebrow">试卷与答题卡</p><h2>图片资料</h2></div>{canEdit ? <div className="upload-actions">{exam.kind === 'comprehensive' ? <select aria-label="图片所属科目" value={attachmentSubject} onChange={(event) => setAttachmentSubject(event.target.value as SubjectCode | '')}><option value="">不指定科目</option>{Object.entries(SUBJECT_LABELS).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select> : null}<select aria-label="图片类别" value={category} onChange={(event) => setCategory(event.target.value as AttachmentCategory)}>{Object.entries(ATTACHMENT_CATEGORY_LABELS).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select><button className="button button--secondary" type="button" onClick={() => fileInput.current?.click()} disabled={Boolean(uploadStatus)}>{uploadStatus ? <LoaderCircle className="spin" size={16} /> : <Upload size={16} />}{uploadStatus || '上传图片'}</button><input ref={fileInput} hidden type="file" accept="image/jpeg,image/png,image/webp,.heic,.heif" multiple onChange={(event) => void handleFiles(event.target.files)} /></div> : null}</div>
             {exam.attachments.length ? <div className="attachment-grid">{exam.attachments.map((attachment) => <AttachmentTile key={attachment.id} attachment={attachment} canEdit={canEdit} onDelete={() => { if (window.confirm('这张图片将随记录保留 30 天后永久删除。')) void softDeleteAttachment(attachment, user!.id).then(invalidate).then(() => showToast('图片已移入回收状态', 'success')).catch((error: Error) => showToast(error.message, 'error')) }} />)}</div> : <div className="empty-inline"><ImagePlus size={26} /><div><strong>还没有图片</strong><p>上传前会自动压缩、纠正方向并移除 EXIF 信息。</p></div>{canEdit ? <button className="button button--secondary" type="button" onClick={() => fileInput.current?.click()}>选择图片</button> : null}</div>}
           </section>
+
+          <AiImageAnalysisPanel examId={exam.id} attachments={exam.attachments} canAnalyze={canEdit} />
 
           <section className="panel detail-section">
             <div className="section-heading"><div><p className="eyebrow">心得时间线</p><h2>当时怎么想</h2></div></div>

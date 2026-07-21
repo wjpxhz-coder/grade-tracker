@@ -97,6 +97,67 @@ export interface Attachment {
   deleted_by: string | null
 }
 
+export interface AiAttachmentInsightDetails {
+  document_type: string
+  overview: string
+  visible_scores: Array<{ label: string; value: string }>
+  mistakes: Array<{
+    location: string
+    observation: string
+    likely_cause: string
+    suggestion: string
+  }>
+  annotations: string[]
+  study_signals: string[]
+  uncertainties: string[]
+}
+
+export interface AiAttachmentInsightUsage {
+  prompt_tokens?: number
+  completion_tokens?: number
+  total_tokens?: number
+  [key: string]: unknown
+}
+
+export interface AiAttachmentInsight {
+  id: string
+  attachment_id: string
+  exam_id: string
+  sha256: string
+  model: string
+  prompt_version: string
+  title: string
+  summary: string
+  key_findings: string[]
+  confidence: number
+  details: AiAttachmentInsightDetails
+  usage: AiAttachmentInsightUsage | null
+  analyzed_by: string
+  created_at: string
+  updated_at: string
+}
+
+export type AiImageAnalysisItemStatus = 'cached' | 'analyzed' | 'failed'
+
+export interface AiImageAnalysisResult {
+  examId: string
+  model: string
+  promptVersion: string
+  counts: {
+    total: number
+    cached: number
+    analyzed: number
+    failed: number
+  }
+  items: Array<{
+    attachmentId: string
+    status: AiImageAnalysisItemStatus
+    insight?: AiAttachmentInsight
+    error?: string
+  }>
+  usage: AiAttachmentInsightUsage | null
+}
+
 export interface AuditEvent {
   id: string
   space_id: string
