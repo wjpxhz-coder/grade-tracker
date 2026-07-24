@@ -1361,7 +1361,8 @@ strong,
   .bottom-nav__item--primary {
     width: 50px;
     height: 50px;
-    margin-top: -18px;
+    align-self: center;
+    margin-top: 0;
     border-color: var(--canvas);
     border-radius: 15px;
     background: var(--sage);
