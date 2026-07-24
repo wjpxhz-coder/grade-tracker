@@ -1,5 +1,5 @@
-import { useQuery } from '@tanstack/react-query'
-import { Archive, Camera, Database, Download, HardDrive, LoaderCircle, LogOut, Monitor, MoonStar, Palette, ShieldCheck, Sun, Trash2, UserRound } from 'lucide-react'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
+import { Archive, Camera, Database, Download, HardDrive, LoaderCircle, LogOut, Monitor, MoonStar, Palette, RefreshCw, ShieldCheck, Sun, Trash2, UserRound } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { PageHeader } from '../components/PageHeader'
@@ -11,6 +11,8 @@ import { deleteProfileAvatar, downloadAttachment, getStorageUsage, loadExportSna
 import { objectsToCsv } from '../lib/csv'
 import { buildDataExportArchive, downloadBlob } from '../lib/export'
 import { formatBytes } from '../lib/format'
+import { clearWebsiteCache } from '../lib/cache'
+import { reloadLatestVersion } from '../lib/recovery'
 
 const FREE_STORAGE_BYTES = 1024 ** 3
 const MAX_EXPORT_PART_BYTES = 180 * 1024 ** 2
@@ -23,7 +25,9 @@ export function SettingsPage() {
   const { profile, profiles, membership, refreshIdentity, user } = useAuth()
   const { showToast } = useToast()
   const { preference, resolvedTheme, setPreference } = useTheme()
+  const queryClient = useQueryClient()
   const [exporting, setExporting] = useState('')
+  const [clearingCache, setClearingCache] = useState(false)
   const [nickname, setNickname] = useState('')
   const [avatarFile, setAvatarFile] = useState<File | null>(null)
   const [avatarPreview, setAvatarPreview] = useState<string | null>(null)
@@ -162,6 +166,15 @@ export function SettingsPage() {
     try { await signOut() } catch (error) { showToast(error instanceof Error ? error.message : '退出失败', 'error') }
   }
 
+  async function handleClearCache() {
+    if (!window.confirm('清理网站缓存会刷新页面，以重新加载最新数据。成绩、图片和主题设置不会受影响。继续吗？')) return
+    setClearingCache(true)
+    queryClient.clear()
+    await clearWebsiteCache()
+    showToast('网站缓存已清理，正在刷新…', 'success')
+    window.setTimeout(reloadLatestVersion, 350)
+  }
+
   return (
     <div className="page">
       <PageHeader eyebrow="空间与安全" title="设置" description="管理主题外观、当前账号、存储空间和离线备份。" />
@@ -194,6 +207,14 @@ export function SettingsPage() {
             <button type="button" aria-pressed={preference === 'system'} className={preference === 'system' ? 'theme-option theme-option--active' : 'theme-option'} onClick={() => setPreference('system' satisfies ThemePreference)}><Monitor /><span><strong>跟随系统</strong><small>随设备外观自动切换</small></span></button>
           </div>
           <p className="settings-note">选择会保存在当前浏览器中，不影响另一位成员的主题。</p>
+        </section>
+
+        <section className="panel settings-card settings-card--wide">
+          <div className="settings-card__heading"><span><RefreshCw /></span><div><h2>网站缓存</h2><p>清除临时数据，并重新加载最新版本。</p></div></div>
+          <div className="settings-action-row">
+            <div><strong>清理网站缓存</strong><p>不会删除云端的成绩、图片和心得，也会保留主题等浏览器偏好。</p></div>
+            <button className="button button--secondary" type="button" onClick={() => void handleClearCache()} disabled={clearingCache}>{clearingCache ? <LoaderCircle className="spin" size={17} /> : <RefreshCw size={17} />}{clearingCache ? '正在清理' : '清理缓存'}</button>
+          </div>
         </section>
 
         <section className="panel settings-card settings-card--wide recovery-card">
