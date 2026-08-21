@@ -2,6 +2,7 @@ import {
   ArrowRight,
   BookOpenCheck,
   CalendarDays,
+  Play,
   Plus,
   TrendingUp,
   Trophy,
@@ -11,6 +12,7 @@ import { Link } from 'react-router-dom'
 import { ErrorState } from '../components/ErrorState'
 import { LoadingScreen } from '../components/LoadingScreen'
 import { PageHeader } from '../components/PageHeader'
+import { ScoreCurveReplayModal } from '../components/ScoreCurveReplayModal'
 import { METRIC_LABELS, TrendCharts } from '../components/TrendCharts'
 import { useAuth } from '../contexts/AuthContext'
 import { useStudentScope } from '../contexts/StudentScopeContext'
@@ -105,6 +107,7 @@ export function DashboardPage() {
   const { studentId, selectedProfile } = useStudentScope()
   const [metric, setMetric] = useState<TrendMetric>('total')
   const [activeExamId, setActiveExamId] = useState<string>()
+  const [isReplayOpen, setIsReplayOpen] = useState<boolean>(false)
   const { exams, subjectScores, isLoading, error, refetch } = useExamData(studentId)
   const insights = useMemo(
     () => deriveComparableExamInsights(exams, subjectScores),
@@ -192,8 +195,22 @@ export function DashboardPage() {
       <section className="dashboard-workspace" aria-labelledby="trend-heading">
         <div className="dashboard-workspace__chart">
           <div className="section-heading">
-            <div><p className="eyebrow">成绩轨迹</p><h2 id="trend-heading">{selectedProfile?.display_name ?? '成员'}的{METRIC_LABELS[metric]}曲线</h2></div>
-            <span className="section-heading__hint"><CalendarDays size={15} />点击数据点查看详情</span>
+            <div>
+              <p className="eyebrow">成绩轨迹</p>
+              <h2 id="trend-heading">{selectedProfile?.display_name ?? '成员'}的{METRIC_LABELS[metric]}曲线</h2>
+            </div>
+            <div className="section-heading__actions">
+              <button
+                type="button"
+                className="button button--secondary button--small replay-trigger-btn"
+                onClick={() => setIsReplayOpen(true)}
+                title="全屏动态播放总成绩曲线与成长轨迹"
+              >
+                <Play size={14} />
+                <span>全屏播放轨迹</span>
+              </button>
+              <span className="section-heading__hint"><CalendarDays size={15} />点击数据点查看详情</span>
+            </div>
           </div>
           <div className="metric-tabs" role="tablist" aria-label="趋势科目">
             {metrics.map((item) => (
@@ -243,6 +260,16 @@ export function DashboardPage() {
           )}
         </aside>
       </section>
+
+      <ScoreCurveReplayModal
+        isOpen={isReplayOpen}
+        onClose={() => setIsReplayOpen(false)}
+        exams={exams}
+        subjectScores={subjectScores}
+        initialMetric={metric}
+        selectedProfile={selectedProfile}
+        accentKey={selectedProfile?.color_key === 'peach' ? 'peach' : 'sage'}
+      />
     </div>
   )
 }
