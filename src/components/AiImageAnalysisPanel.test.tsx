@@ -41,7 +41,7 @@ const attachments: Attachment[] = [
 function insight(overrides: Partial<AiAttachmentInsight> = {}): AiAttachmentInsight {
   return {
     id: 'insight-current', attachment_id: 'attachment-current', exam_id: 'exam-1', sha256: 'a'.repeat(64),
-    model: 'gpt-5.5', prompt_version: 'exam-image-summary-v1', title: '数学答题卡：计算题失分集中',
+    model: 'agnes-2.5-flash', prompt_version: 'exam-image-summary-v1', title: '数学答题卡：计算题失分集中',
     summary: '答题卡显示基础题完成稳定，但计算题步骤不够完整。', key_findings: ['第 18 题符号处理有误', '订正时补全中间步骤'],
     confidence: 0.86,
     details: { document_type: 'answer_sheet', overview: '数学答题卡', visible_scores: [], mistakes: [], annotations: [], study_signals: [], uncertainties: [] },
@@ -80,7 +80,7 @@ describe('AiImageAnalysisPanel', () => {
     expect(screen.getAllByText('答题卡显示基础题完成稳定，但计算题步骤不够完整。')).toHaveLength(2)
     expect(screen.getAllByText('第 18 题符号处理有误')).toHaveLength(2)
     expect(screen.getAllByText('置信度 86%')).toHaveLength(2)
-    expect(screen.getAllByText('gpt-5.5')).toHaveLength(2)
+    expect(screen.getAllByText('agnes-2.5-flash')).toHaveLength(2)
     expect(screen.getByText('已缓存')).toBeInTheDocument()
     expect(screen.getByText('图片已变化')).toBeInTheDocument()
     expect(screen.getByText('待分析')).toBeInTheDocument()
@@ -95,7 +95,7 @@ describe('AiImageAnalysisPanel', () => {
       insight({ id: 'insight-changed', attachment_id: 'attachment-changed', sha256: 'd'.repeat(64) }),
     ])
     vi.mocked(analyzeExamImages).mockResolvedValue({
-      examId: 'exam-1', model: 'gpt-5.5', promptVersion: 'exam-image-summary-v1',
+      examId: 'exam-1', model: 'agnes-2.5-flash', promptVersion: 'exam-image-summary-v1',
       counts: { total: 2, cached: 0, analyzed: 2, failed: 0 },
       items: [
         { attachmentId: 'attachment-changed', status: 'analyzed' },
@@ -118,7 +118,7 @@ describe('AiImageAnalysisPanel', () => {
     const user = userEvent.setup()
     vi.mocked(listAiAttachmentInsights).mockResolvedValue([])
     vi.mocked(analyzeExamImages).mockResolvedValue({
-      examId: 'exam-1', model: 'gpt-5.5', promptVersion: 'exam-image-summary-v1',
+      examId: 'exam-1', model: 'agnes-2.5-flash', promptVersion: 'exam-image-summary-v1',
       counts: { total: 1, cached: 0, analyzed: 0, failed: 1 },
       items: [{ attachmentId: 'attachment-current', status: 'failed', error: 'provider_error' }],
       usage: null,
@@ -154,7 +154,7 @@ describe('AiImageAnalysisPanel', () => {
     }))
     vi.mocked(listAiAttachmentInsights).mockResolvedValue([])
     vi.mocked(analyzeExamImages).mockImplementation(async ({ attachmentIds = [] }) => ({
-      examId: 'exam-1', model: 'gpt-5.5', promptVersion: 'exam-image-summary-v1',
+      examId: 'exam-1', model: 'agnes-2.5-flash', promptVersion: 'exam-image-summary-v1',
       counts: { total: attachmentIds.length, cached: 0, analyzed: attachmentIds.length, failed: 0 },
       items: attachmentIds.map((attachmentId) => ({ attachmentId, status: 'analyzed' as const })),
       usage: null,
@@ -177,7 +177,7 @@ describe('AiImageAnalysisPanel', () => {
     }))
     vi.mocked(listAiAttachmentInsights).mockResolvedValue([])
     vi.mocked(analyzeExamImages).mockResolvedValue({
-      examId: 'exam-1', model: 'gpt-5.5', promptVersion: 'exam-image-summary-v1',
+      examId: 'exam-1', model: 'agnes-2.5-flash', promptVersion: 'exam-image-summary-v1',
       counts: { total: 4, cached: 0, analyzed: 3, failed: 1 },
       items: [
         ...manyAttachments.slice(0, 3).map((attachment) => ({ attachmentId: attachment.id, status: 'analyzed' as const })),

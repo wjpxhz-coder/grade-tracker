@@ -4,7 +4,7 @@ import { topLevelProviderError } from "./provider-error.ts";
 
 const ATTACHMENT_BUCKET = "exam-attachments";
 const INSIGHTS_TABLE = "ai_attachment_insights";
-const MODEL = "gpt-5.5";
+const MODEL = "agnes-2.5-flash";
 const PROMPT_VERSION = "exam-image-summary-v1";
 const MAX_ATTACHMENTS = 4;
 const MAX_IMAGE_BYTES = 8 * 1024 * 1024;
@@ -751,8 +751,8 @@ function chatPayload(dataUrl: string): JsonRecord {
         schema: INSIGHT_SCHEMA,
       },
     },
-    reasoning_effort: "low",
-    max_completion_tokens: 1800,
+    max_tokens: 2048,
+    max_completion_tokens: 2048,
     store: false,
   };
 }
@@ -939,8 +939,11 @@ Deno.serve(async (request) => {
     const supabaseUrl = Deno.env.get("SUPABASE_URL") ?? "";
     const anonKey = Deno.env.get("SUPABASE_ANON_KEY") ?? "";
     const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
-    const providerBaseUrl = Deno.env.get("NEWAPI_BASE_URL") ?? "";
-    const providerApiKey = Deno.env.get("NEWAPI_API_KEY") ?? "";
+    const providerBaseUrl = Deno.env.get("NEWAPI_BASE_URL") ??
+      Deno.env.get("AGNES_BASE_URL") ??
+      "https://apihub.agnes-ai.com/v1";
+    const providerApiKey = Deno.env.get("NEWAPI_API_KEY") ??
+      Deno.env.get("AGNES_API_KEY") ?? "";
     if (
       !supabaseUrl || !anonKey || !serviceRoleKey || !providerBaseUrl ||
       !providerApiKey
