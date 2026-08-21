@@ -1,4 +1,6 @@
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
+import { createAuthClient, createUserClient } from "./client.ts";
+import { topLevelProviderError } from "./provider-error.ts";
 
 const ATTACHMENT_BUCKET = "exam-attachments";
 const INSIGHTS_TABLE = "ai_attachment_insights";
@@ -927,7 +929,12 @@ Deno.serve(async (request) => {
 
   try {
     const token = bearerToken(request);
-    if (!token) throw new HttpError("unauthorized", 401);
+    if (!token) {
+      console.warn("analyze-exam-images auth rejected", {
+        reason: "missing_bearer",
+      });
+      throw new HttpError("unauthorized", 401);
+    }
 
     const supabaseUrl = Deno.env.get("SUPABASE_URL") ?? "";
     const anonKey = Deno.env.get("SUPABASE_ANON_KEY") ?? "";
@@ -944,18 +951,23 @@ Deno.serve(async (request) => {
     const endpoints = normalizeProviderBaseUrl(providerBaseUrl);
     const configuredApiMode = configuredProviderApiMode();
     const { examId, attachmentIds, force } = await parseRequestBody(request);
-    const userClient = createClient(supabaseUrl, anonKey, {
-      global: { headers: { authorization: `Bearer ${token}` } },
-      auth: { persistSession: false, autoRefreshToken: false },
-    });
+    const authClient = createAuthClient(supabaseUrl, anonKey);
+    const userClient = createUserClient(supabaseUrl, anonKey, token);
     const adminClient = createClient(supabaseUrl, serviceRoleKey, {
       auth: { persistSession: false, autoRefreshToken: false },
     });
 
-    const { data: authData, error: authError } = await userClient.auth.getUser(
+    const { data: authData, error: authError } = await authClient.auth.getUser(
       token,
     );
-    if (authError || !authData.user) throw new HttpError("unauthorized", 401);
+    if (authError || !authData.user) {
+      console.warn("analyze-exam-images auth rejected", {
+        reason: "get_user_failed",
+        code: authError?.code ?? "missing_user",
+        status: authError?.status ?? null,
+      });
+      throw new HttpError("unauthorized", 401);
+    }
 
     const { data: canView, error: permissionError } = await userClient.rpc(
       "can_view_exam",
@@ -1176,28 +1188,16 @@ Deno.serve(async (request) => {
         totalUsage.total_tokens
       ? totalUsage
       : null;
-    const providerFailureCodes = new Set([
-      "invalid_provider_response",
-      "provider_auth_error",
-      "provider_error",
-      "provider_incomplete",
-      "provider_rate_limited",
-      "provider_refusal",
-      "provider_timeout",
-      "provider_unreachable",
-    ]);
-    const allFailedFromProvider = counts.total > 0 &&
-      counts.failed === counts.total &&
-      items.every((item) => providerFailureCodes.has(item.error ?? ""));
+    const providerError = topLevelProviderError(items);
     return jsonResponse(request, {
-      ...(allFailedFromProvider ? { error: "provider_error" } : {}),
+      ...(providerError ? { error: providerError } : {}),
       examId,
       model: MODEL,
       promptVersion: PROMPT_VERSION,
       counts,
       items,
       usage,
-    }, allFailedFromProvider ? 502 : 200);
+    }, providerError ? 502 : 200);
   } catch (error) {
     if (error instanceof HttpError) {
       return jsonResponse(request, {

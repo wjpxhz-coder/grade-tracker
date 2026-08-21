@@ -113,9 +113,9 @@ export async function updateMyProfile(displayName: string, avatarPath: string | 
 export async function uploadProfileAvatar(userId: string, file: File): Promise<string> {
   const converted = await optimizeImage(file, {
     maxInputBytes: 10 * 1024 * 1024,
-    maxLongEdge: 512,
-    maxOutputBytes: 512 * 1024,
-    quality: 0.84,
+    maxLongEdge: 400,
+    maxOutputBytes: 256 * 1024,
+    quality: 0.80,
     outputType: 'image/webp',
     heicConverter: isHeicImage(file) ? await heicConverter() : undefined,
   })

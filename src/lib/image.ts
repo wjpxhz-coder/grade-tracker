@@ -69,11 +69,11 @@ export class ImageProcessingError extends Error {
 const DEFAULTS = {
   maxInputBytes: 30 * 1024 * 1024,
   maxLongEdge: 2400,
-  maxOutputBytes: 3 * 1024 * 1024,
-  quality: 0.86,
-  thumbnailLongEdge: 480,
-  thumbnailQuality: 0.72,
-  outputType: "image/jpeg" as const,
+  maxOutputBytes: 1.5 * 1024 * 1024,
+  quality: 0.82,
+  thumbnailLongEdge: 400,
+  thumbnailQuality: 0.70,
+  outputType: "image/webp" as const,
   jpegBackground: "#ffffff",
 };
 
@@ -250,11 +250,11 @@ function drawResized(
   jpegBackground: string,
 ): HTMLCanvasElement {
   const canvas = createCanvas(dimensions);
-  const context = canvas.getContext("2d", { alpha: outputType !== "image/jpeg" });
+  const context = canvas.getContext("2d", { alpha: outputType !== "image/jpeg" && !jpegBackground });
   if (!context) {
     throw new ImageProcessingError("ENCODE_FAILED", "浏览器无法创建图片画布。");
   }
-  if (outputType === "image/jpeg") {
+  if (jpegBackground) {
     context.fillStyle = jpegBackground;
     context.fillRect(0, 0, canvas.width, canvas.height);
   }
