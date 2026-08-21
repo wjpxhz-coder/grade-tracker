@@ -134,14 +134,14 @@ limit 20;
 
 ## 部署 AI 图片摘要函数
 
-`analyze-exam-images` 固定使用 `gpt-5.5` 和提示词版本 `exam-image-summary-v1`。它先用调用者 JWT 与 RLS 读取未删除考试、附件及私有 Storage 对象，再由函数计算文件 SHA-256；只有通过这些检查后，service role 才会写入 `ai_attachment_insights`。浏览器账号只有该表的读取权限，不能伪造 AI 摘要。
+`analyze-exam-images` 固定使用 `agnes-2.5-flash` 和提示词版本 `exam-image-summary-v1`。它先用调用者 JWT 与 RLS 读取未删除考试、附件及私有 Storage 对象，再由函数计算文件 SHA-256；只有通过这些检查后，service role 才会写入 `ai_attachment_insights`。浏览器账号只有该表的读取权限，不能伪造 AI 摘要。
 
-请先撤销任何曾粘贴到聊天、日志或源码中的 API key，并在 NewAPI 后台生成新 key。不要把 key 写入 `.env.local`、迁移、前端变量或本文件。推荐在 Supabase Dashboard 的 Edge Functions Secrets 中配置：
+请先撤销任何曾粘贴到聊天、日志或源码中的 API key，并重新生成新 key。不要把 key 写入 `.env.local`、迁移、前端变量或本文件。推荐在 Supabase Dashboard 的 Edge Functions Secrets 中配置：
 
 ```text
-NEWAPI_BASE_URL=https://YOUR_NEWAPI_HOST
+NEWAPI_BASE_URL=https://apihub.agnes-ai.com/v1
 NEWAPI_API_KEY=REPLACE_WITH_A_NEW_SECRET
-NEWAPI_API_MODE=responses
+NEWAPI_API_MODE=chat
 AI_ANALYSIS_ALLOWED_ORIGINS=https://wjpxhz-coder.github.io,http://localhost:5173,http://localhost:4173
 ```
 
@@ -170,7 +170,7 @@ npx supabase functions deploy analyze-exam-images --use-api
 ```json
 {
   "examId": "考试 UUID",
-  "model": "gpt-5.5",
+  "model": "agnes-2.5-flash",
   "promptVersion": "exam-image-summary-v1",
   "counts": { "total": 2, "cached": 1, "analyzed": 1, "failed": 0 },
   "items": [
@@ -181,7 +181,7 @@ npx supabase functions deploy analyze-exam-images --use-api
 }
 ```
 
-函数优先调用 OpenAI 兼容的 `/v1/responses`，以 `detail=high` 分析单图、使用严格 JSON Schema、`reasoning.effort=low`、`max_output_tokens=1800` 且 `store=false`。只有端点返回 404 或明确说明不支持 Responses API 时才回退 `/v1/chat/completions`；鉴权失败、限流、服务端错误和超时都不会回退或自动重试，避免重复计费。原图/base64、请求体、API key 和供应商响应正文不会写入日志。
+函数优先调用 OpenAI 兼容的 `/v1/responses` 或 `/v1/chat/completions`，以 `detail=high` 分析单图、使用严格 JSON Schema、`max_tokens=2048` 且 `store=false`。只有端点返回 404 或明确说明不支持 Responses API 时才回退 `/v1/chat/completions`；鉴权失败、限流、服务端错误和超时都不会回退或自动重试，避免重复计费。原图/base64、请求体、API key 和供应商响应正文不会写入日志。
 
 常见顶层错误码：`unauthorized`、`origin_not_allowed`、`exam_forbidden`、`exam_not_found`、`invalid_attachment_selection`、`too_many_attachments`、`server_not_configured` 与 `provider_error`。单图错误会出现在对应 item 的 `error`，其他图片仍可继续时返回 HTTP 200；全部图片均因供应商失败时返回 HTTP 502。
 
