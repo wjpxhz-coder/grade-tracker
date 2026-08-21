@@ -200,13 +200,13 @@ export function DashboardPage() {
             <div className="section-heading__actions">
               <Link
                 to={`/replay?metric=${metric}`}
-                className="button button--secondary button--small replay-trigger-btn"
-                title="全屏播放总成绩曲线与成长轨迹"
+                className="trend-replay-pill"
+                title="动态回放总成绩曲线与成长轨迹"
               >
-                <Play size={14} />
-                <span>全屏播放轨迹</span>
+                <Play size={13} className="trend-replay-pill__icon" />
+                <span>动态回放</span>
               </Link>
-              <span className="section-heading__hint"><CalendarDays size={15} />点击数据点查看详情</span>
+              <span className="section-heading__hint"><CalendarDays size={14} />点击数据点查看详情</span>
             </div>
           </div>
           <div className="metric-tabs" role="tablist" aria-label="趋势科目">

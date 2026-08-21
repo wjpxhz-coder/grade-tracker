@@ -126,7 +126,7 @@ describe('DashboardPage', () => {
 
   it('renders a link to the standalone full-page replay route', () => {
     render(<MemoryRouter><DashboardPage /></MemoryRouter>)
-    const replayLink = screen.getByRole('link', { name: /全屏播放轨迹/ })
+    const replayLink = screen.getByRole('link', { name: /动态回放/ })
     expect(replayLink).toHaveAttribute('href', '/replay?metric=total')
   })
 })
