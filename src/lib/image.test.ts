@@ -42,9 +42,21 @@ describe("image helpers", () => {
 
   it("creates safe output names", () => {
     expect(replaceImageExtension("答题卡.HEIC", "image/jpeg")).toBe("答题卡.jpg");
+    expect(replaceImageExtension("答题卡.HEIC", "image/webp")).toBe("答题卡.webp");
     expect(replaceImageExtension("paper.png", "image/webp", "-thumb")).toBe(
       "paper-thumb.webp",
     );
+  });
+
+  it("fits thumbnail dimensions accurately", () => {
+    expect(fitImageWithin({ width: 2400, height: 1800 }, 400)).toEqual({
+      width: 400,
+      height: 300,
+    });
+    expect(fitImageWithin({ width: 300, height: 200 }, 400)).toEqual({
+      width: 300,
+      height: 200,
+    });
   });
 
   it("adapts heic2any without making it a hard dependency", async () => {
