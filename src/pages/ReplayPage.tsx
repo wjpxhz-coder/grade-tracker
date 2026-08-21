@@ -9,6 +9,8 @@ import {
   BookOpenCheck,
   ChevronLeft,
   ChevronRight,
+  Maximize,
+  Minimize,
   Pause,
   Play,
   Repeat,
@@ -19,7 +21,7 @@ import {
   TrendingUp,
   Trophy,
 } from 'lucide-react'
-import { useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import { ErrorState } from '../components/ErrorState'
 import { LoadingScreen } from '../components/LoadingScreen'
@@ -84,6 +86,86 @@ export function ReplayPage() {
   const [isPlaying, setIsPlaying] = useState<boolean>(true)
   const [playbackSpeed, setPlaybackSpeed] = useState<number>(1)
   const [isLoop, setIsLoop] = useState<boolean>(false)
+  const [isFullscreen, setIsFullscreen] = useState<boolean>(false)
+  const [isLandscape, setIsLandscape] = useState<boolean>(() => {
+    if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') return false
+    return window.matchMedia('(orientation: landscape)').matches
+  })
+
+  useEffect(() => {
+    const handleFsChange = () => {
+      setIsFullscreen(Boolean(document.fullscreenElement))
+    }
+    document.addEventListener('fullscreenchange', handleFsChange)
+    document.addEventListener('webkitfullscreenchange', handleFsChange)
+
+    let mql: MediaQueryList | null = null
+    let handleOrientation: ((e: MediaQueryListEvent) => void) | null = null
+
+    if (typeof window !== 'undefined' && typeof window.matchMedia === 'function') {
+      mql = window.matchMedia('(orientation: landscape)')
+      handleOrientation = (e: MediaQueryListEvent) => {
+        setIsLandscape(e.matches)
+      }
+      if (mql.addEventListener) {
+        mql.addEventListener('change', handleOrientation)
+      } else if ('addListener' in mql) {
+        (mql as unknown as { addListener: (cb: (e: MediaQueryListEvent) => void) => void }).addListener(handleOrientation)
+      }
+    }
+
+    return () => {
+      document.removeEventListener('fullscreenchange', handleFsChange)
+      document.removeEventListener('webkitfullscreenchange', handleFsChange)
+      if (mql && handleOrientation) {
+        if (mql.removeEventListener) {
+          mql.removeEventListener('change', handleOrientation)
+        } else if ('removeListener' in mql) {
+          (mql as unknown as { removeListener: (cb: (e: MediaQueryListEvent) => void) => void }).removeListener(handleOrientation)
+        }
+      }
+    }
+  }, [])
+
+  const toggleFullscreenLandscape = useCallback(async () => {
+    try {
+      if (!document.fullscreenElement) {
+        const docEl = document.documentElement as HTMLElement & {
+          webkitRequestFullscreen?: () => Promise<void>
+        }
+        if (docEl.requestFullscreen) {
+          await docEl.requestFullscreen()
+        } else if (docEl.webkitRequestFullscreen) {
+          await docEl.webkitRequestFullscreen()
+        }
+        if ('orientation' in screen && 'lock' in screen.orientation) {
+          try {
+            await (screen.orientation as unknown as { lock: (orientation: string) => Promise<void> }).lock('landscape')
+          } catch {
+            // Orientation lock can fail on unsupported devices
+          }
+        }
+      } else {
+        const doc = document as Document & {
+          webkitExitFullscreen?: () => Promise<void>
+        }
+        if (doc.exitFullscreen) {
+          await doc.exitFullscreen()
+        } else if (doc.webkitExitFullscreen) {
+          await doc.webkitExitFullscreen()
+        }
+        if ('orientation' in screen && 'unlock' in screen.orientation) {
+          try {
+            screen.orientation.unlock()
+          } catch {
+            // ignore
+          }
+        }
+      }
+    } catch {
+      // ignore
+    }
+  }, [])
 
   const metrics: TrendMetric[] = ['total', ...SUBJECT_CODES]
 
@@ -354,7 +436,7 @@ export function ReplayPage() {
   }
 
   return (
-    <div className="replay-page">
+    <div className={`replay-page ${isLandscape ? 'replay-page--landscape' : ''} ${isFullscreen ? 'replay-page--fullscreen' : ''}`}>
       {/* Full-bleed Top Navigation */}
       <header className="replay-page__topbar">
         <div className="replay-page__topbar-left">
@@ -404,6 +486,18 @@ export function ReplayPage() {
               得分率
             </button>
           </div>
+
+          {/* Fullscreen Landscape Toggle */}
+          <button
+            type="button"
+            className={`replay-page__fs-btn ${isFullscreen ? 'replay-page__fs-btn--active' : ''}`}
+            onClick={() => void toggleFullscreenLandscape()}
+            title={isFullscreen ? '退出全屏' : '全屏横屏展示'}
+            aria-label={isFullscreen ? '退出全屏' : '全屏横屏展示'}
+          >
+            {isFullscreen ? <Minimize size={15} /> : <Maximize size={15} />}
+            <span className="replay-page__fs-btn-text">{isFullscreen ? '退出全屏' : '全屏横屏'}</span>
+          </button>
         </div>
       </header>
 
