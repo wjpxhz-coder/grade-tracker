@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { HashRouter, Navigate, Route, Routes } from 'react-router-dom'
+import { HashRouter, Navigate, Outlet, Route, Routes } from 'react-router-dom'
 import { AppErrorBoundary } from './components/AppErrorBoundary'
 import { AppShell } from './components/AppShell'
 import { LoadingScreen } from './components/LoadingScreen'
@@ -14,6 +14,7 @@ import { ExamFormPage } from './pages/ExamFormPage'
 import { ExamsPage } from './pages/ExamsPage'
 import { LoginPage } from './pages/LoginPage'
 import { NotFoundPage } from './pages/NotFoundPage'
+import { ReplayPage } from './pages/ReplayPage'
 import { SettingsPage } from './pages/SettingsPage'
 import { TrashPage } from './pages/TrashPage'
 
@@ -43,7 +44,7 @@ function ProtectedLayout() {
       </main>
     )
   }
-  return <AppShell />
+  return <Outlet />
 }
 
 function AppRoutes() {
@@ -51,14 +52,17 @@ function AppRoutes() {
     <Routes>
       <Route path="/login" element={<LoginPage />} />
       <Route element={<ProtectedLayout />}>
-        <Route index element={<DashboardPage />} />
-        <Route path="exams" element={<ExamsPage />} />
-        <Route path="exams/new" element={<ExamFormPage />} />
-        <Route path="exams/:examId" element={<ExamDetailPage />} />
-        <Route path="exams/:examId/edit" element={<ExamFormPage />} />
-        <Route path="trash" element={<TrashPage />} />
-        <Route path="settings" element={<SettingsPage />} />
-        <Route path="*" element={<NotFoundPage />} />
+        <Route path="replay" element={<ReplayPage />} />
+        <Route element={<AppShell />}>
+          <Route index element={<DashboardPage />} />
+          <Route path="exams" element={<ExamsPage />} />
+          <Route path="exams/new" element={<ExamFormPage />} />
+          <Route path="exams/:examId" element={<ExamDetailPage />} />
+          <Route path="exams/:examId/edit" element={<ExamFormPage />} />
+          <Route path="trash" element={<TrashPage />} />
+          <Route path="settings" element={<SettingsPage />} />
+          <Route path="*" element={<NotFoundPage />} />
+        </Route>
       </Route>
     </Routes>
   )
