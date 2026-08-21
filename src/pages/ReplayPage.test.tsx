@@ -207,4 +207,16 @@ describe('ReplayPage', () => {
     expect(screen.getByText(/还没有总成绩记录/)).toBeInTheDocument()
     expect(screen.getByRole('link', { name: '返回主页' })).toHaveAttribute('href', '/')
   })
+
+  it('provides a fullscreen landscape toggle button', () => {
+    render(
+      <MemoryRouter initialEntries={['/replay']}>
+        <ReplayPage />
+      </MemoryRouter>,
+    )
+
+    const fsBtn = screen.getByRole('button', { name: /全屏横屏/ })
+    expect(fsBtn).toBeInTheDocument()
+    fireEvent.click(fsBtn)
+  })
 })
