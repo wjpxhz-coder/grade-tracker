@@ -1492,16 +1492,41 @@ strong,
 }
 
 /* ==========================================================================
-   Replay Page (True Fullscreen, Edge-to-Edge, Seamless Experience)
+   Replay Page & Trigger Button (Refined & Seamless)
    ========================================================================== */
-.replay-trigger-btn {
+.trend-replay-pill {
   display: inline-flex;
   align-items: center;
   gap: 6px;
   padding: 5px 12px;
+  border-radius: 99px;
+  background: var(--sage-soft);
+  color: var(--sage-dark);
+  border: 1px solid color-mix(in srgb, var(--sage) 28%, transparent);
   font-size: .8125rem;
   font-weight: 650;
-  border-radius: 9px;
+  text-decoration: none;
+  transition: all var(--duration-fast) cubic-bezier(0.16, 1, 0.3, 1);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+}
+
+.trend-replay-pill:hover {
+  background: var(--sage);
+  color: #fff;
+  border-color: var(--sage);
+  transform: translateY(-1px);
+  box-shadow: 0 3px 10px rgba(79, 124, 106, 0.28);
+}
+
+.trend-replay-pill__icon {
+  fill: currentColor;
+  flex-shrink: 0;
+  transition: transform var(--duration-fast) ease;
+}
+
+.trend-replay-pill:hover .trend-replay-pill__icon {
+  fill: #fff;
+  transform: scale(1.1);
 }
 
 .replay-page {
