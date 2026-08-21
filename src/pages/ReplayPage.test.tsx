@@ -1,19 +1,19 @@
 import { cleanup, fireEvent, render, screen } from '@testing-library/react'
+import { MemoryRouter } from 'react-router-dom'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { useStudentScope } from '../contexts/StudentScopeContext'
+import { useTheme } from '../contexts/ThemeContext'
+import { useExamData } from '../hooks/useExamData'
 import type { Exam, Profile, SubjectScore } from '../types/domain'
-import { ScoreCurveReplayModal } from './ScoreCurveReplayModal'
+import { ReplayPage } from './ReplayPage'
 
 vi.mock('echarts-for-react/lib/core', () => ({
   default: () => <div data-testid="mock-echarts" />,
 }))
 
-vi.mock('../contexts/ThemeContext', () => ({
-  useTheme: () => ({
-    preference: 'light',
-    resolvedTheme: 'light',
-    setPreference: vi.fn(),
-  }),
-}))
+vi.mock('../contexts/StudentScopeContext', () => ({ useStudentScope: vi.fn() }))
+vi.mock('../contexts/ThemeContext', () => ({ useTheme: vi.fn() }))
+vi.mock('../hooks/useExamData', () => ({ useExamData: vi.fn() }))
 
 const profile: Profile = {
   id: 'student-1',
@@ -100,55 +100,48 @@ const subjectScores: SubjectScore[] = [
   },
 ]
 
-describe('ScoreCurveReplayModal', () => {
-  const onClose = vi.fn()
-
+describe('ReplayPage', () => {
   beforeEach(() => {
-    onClose.mockClear()
+    vi.mocked(useStudentScope).mockReturnValue({
+      studentId: profile.id,
+      selectedProfile: profile,
+      setStudentId: vi.fn(),
+    })
+    vi.mocked(useTheme).mockReturnValue({
+      preference: 'light',
+      resolvedTheme: 'light',
+      setPreference: vi.fn(),
+    })
+    vi.mocked(useExamData).mockReturnValue({
+      exams,
+      subjectScores,
+      isLoading: false,
+      error: null,
+      refetch: vi.fn(),
+    })
   })
 
   afterEach(cleanup)
 
-  it('renders nothing when isOpen is false', () => {
+  it('renders clean replay page with back link, title, and initial exam spotlight', () => {
     render(
-      <ScoreCurveReplayModal
-        isOpen={false}
-        onClose={onClose}
-        exams={exams}
-        subjectScores={subjectScores}
-        selectedProfile={profile}
-      />,
-    )
-    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
-  })
-
-  it('renders modal content and spotlight on the first exam when opened', () => {
-    render(
-      <ScoreCurveReplayModal
-        isOpen={true}
-        onClose={onClose}
-        exams={exams}
-        subjectScores={subjectScores}
-        selectedProfile={profile}
-      />,
+      <MemoryRouter initialEntries={['/replay']}>
+        <ReplayPage />
+      </MemoryRouter>,
     )
 
-    expect(screen.getByRole('dialog')).toBeInTheDocument()
-    expect(screen.getByText(/小溪的总成绩成长轨迹/)).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: /返回总览/ })).toHaveAttribute('href', '/')
+    expect(screen.getByRole('heading', { name: /小溪的总成绩轨迹/ })).toBeInTheDocument()
     expect(screen.getByRole('heading', { name: '高二期末考试' })).toBeInTheDocument()
     expect(screen.getByText(/523.5 \/ 750/)).toBeInTheDocument()
     expect(screen.getByText(/第 85 名/)).toBeInTheDocument()
   })
 
-  it('advances to next exam and rewinds to previous exam on button clicks', () => {
+  it('advances and rewinds exam frames via playback buttons', () => {
     render(
-      <ScoreCurveReplayModal
-        isOpen={true}
-        onClose={onClose}
-        exams={exams}
-        subjectScores={subjectScores}
-        selectedProfile={profile}
-      />,
+      <MemoryRouter initialEntries={['/replay']}>
+        <ReplayPage />
+      </MemoryRouter>,
     )
 
     const nextBtn = screen.getByRole('button', { name: '下一场' })
@@ -164,64 +157,54 @@ describe('ScoreCurveReplayModal', () => {
     expect(screen.getByRole('heading', { name: '高二期末考试' })).toBeInTheDocument()
   })
 
-  it('responds to keyboard navigation', () => {
+  it('handles keyboard navigation (ArrowRight, Space, ArrowLeft)', () => {
     render(
-      <ScoreCurveReplayModal
-        isOpen={true}
-        onClose={onClose}
-        exams={exams}
-        subjectScores={subjectScores}
-        selectedProfile={profile}
-      />,
+      <MemoryRouter initialEntries={['/replay']}>
+        <ReplayPage />
+      </MemoryRouter>,
     )
 
-    // Press right arrow to step forward
     fireEvent.keyDown(window, { code: 'ArrowRight' })
     expect(screen.getByRole('heading', { name: '高二最后一次考试' })).toBeInTheDocument()
 
-    // Press space to toggle play/pause
     fireEvent.keyDown(window, { code: 'Space' })
 
-    // Press left arrow to step backward
     fireEvent.keyDown(window, { code: 'ArrowLeft' })
     expect(screen.getByRole('heading', { name: '高二期末考试' })).toBeInTheDocument()
-
-    // Press escape to close
-    fireEvent.keyDown(window, { key: 'Escape' })
-    expect(onClose).toHaveBeenCalledTimes(1)
   })
 
-  it('supports switching subject tabs and score display mode', () => {
+  it('supports switching metrics and score display modes', () => {
     render(
-      <ScoreCurveReplayModal
-        isOpen={true}
-        onClose={onClose}
-        exams={exams}
-        subjectScores={subjectScores}
-        selectedProfile={profile}
-      />,
+      <MemoryRouter initialEntries={['/replay']}>
+        <ReplayPage />
+      </MemoryRouter>,
     )
 
     const mathTab = screen.getByRole('tab', { name: '数学' })
     fireEvent.click(mathTab)
-    expect(screen.getByText(/小溪的数学成长轨迹/)).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: /小溪的数学轨迹/ })).toBeInTheDocument()
 
     const percentBtn = screen.getByRole('button', { name: '得分率' })
     fireEvent.click(percentBtn)
     expect(percentBtn).toHaveClass('active')
   })
 
-  it('renders empty state if no exam data for selected metric', () => {
+  it('renders empty state when there are no exams', () => {
+    vi.mocked(useExamData).mockReturnValue({
+      exams: [],
+      subjectScores: [],
+      isLoading: false,
+      error: null,
+      refetch: vi.fn(),
+    })
+
     render(
-      <ScoreCurveReplayModal
-        isOpen={true}
-        onClose={onClose}
-        exams={[]}
-        subjectScores={[]}
-        selectedProfile={profile}
-      />,
+      <MemoryRouter initialEntries={['/replay']}>
+        <ReplayPage />
+      </MemoryRouter>,
     )
 
-    expect(screen.getByText(/暂无可播放的总成绩数据/)).toBeInTheDocument()
+    expect(screen.getByText(/还没有总成绩记录/)).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: '返回主页' })).toHaveAttribute('href', '/')
   })
 })

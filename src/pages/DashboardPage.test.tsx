@@ -19,16 +19,6 @@ vi.mock('../components/TrendCharts', () => ({
     <output data-testid="active-exam">{activeExamId ?? ''}</output>
   ),
 }))
-vi.mock('../components/ScoreCurveReplayModal', () => ({
-  ScoreCurveReplayModal: ({ isOpen, onClose }: { isOpen: boolean; onClose: () => void }) => (
-    isOpen ? (
-      <div data-testid="score-replay-modal">
-        <span>全屏轨迹回放弹窗</span>
-        <button type="button" onClick={onClose}>关闭</button>
-      </div>
-    ) : null
-  ),
-}))
 
 const profile: Profile = {
   id: 'student-1',
@@ -134,15 +124,9 @@ describe('DashboardPage', () => {
     expect(latestRow).toHaveTextContent('+15.0 个点')
   })
 
-  it('opens score curve replay modal when clicking the replay button', () => {
+  it('renders a link to the standalone full-page replay route', () => {
     render(<MemoryRouter><DashboardPage /></MemoryRouter>)
-    expect(screen.queryByTestId('score-replay-modal')).not.toBeInTheDocument()
-
-    const replayBtn = screen.getByRole('button', { name: /全屏播放轨迹/ })
-    fireEvent.click(replayBtn)
-    expect(screen.getByTestId('score-replay-modal')).toBeInTheDocument()
-
-    fireEvent.click(screen.getByRole('button', { name: '关闭' }))
-    expect(screen.queryByTestId('score-replay-modal')).not.toBeInTheDocument()
+    const replayLink = screen.getByRole('link', { name: /全屏播放轨迹/ })
+    expect(replayLink).toHaveAttribute('href', '/replay?metric=total')
   })
 })

@@ -12,7 +12,6 @@ import { Link } from 'react-router-dom'
 import { ErrorState } from '../components/ErrorState'
 import { LoadingScreen } from '../components/LoadingScreen'
 import { PageHeader } from '../components/PageHeader'
-import { ScoreCurveReplayModal } from '../components/ScoreCurveReplayModal'
 import { METRIC_LABELS, TrendCharts } from '../components/TrendCharts'
 import { useAuth } from '../contexts/AuthContext'
 import { useStudentScope } from '../contexts/StudentScopeContext'
@@ -107,7 +106,6 @@ export function DashboardPage() {
   const { studentId, selectedProfile } = useStudentScope()
   const [metric, setMetric] = useState<TrendMetric>('total')
   const [activeExamId, setActiveExamId] = useState<string>()
-  const [isReplayOpen, setIsReplayOpen] = useState<boolean>(false)
   const { exams, subjectScores, isLoading, error, refetch } = useExamData(studentId)
   const insights = useMemo(
     () => deriveComparableExamInsights(exams, subjectScores),
@@ -200,15 +198,14 @@ export function DashboardPage() {
               <h2 id="trend-heading">{selectedProfile?.display_name ?? '成员'}的{METRIC_LABELS[metric]}曲线</h2>
             </div>
             <div className="section-heading__actions">
-              <button
-                type="button"
+              <Link
+                to={`/replay?metric=${metric}`}
                 className="button button--secondary button--small replay-trigger-btn"
-                onClick={() => setIsReplayOpen(true)}
-                title="全屏动态播放总成绩曲线与成长轨迹"
+                title="全屏播放总成绩曲线与成长轨迹"
               >
                 <Play size={14} />
                 <span>全屏播放轨迹</span>
-              </button>
+              </Link>
               <span className="section-heading__hint"><CalendarDays size={15} />点击数据点查看详情</span>
             </div>
           </div>
@@ -260,16 +257,6 @@ export function DashboardPage() {
           )}
         </aside>
       </section>
-
-      <ScoreCurveReplayModal
-        isOpen={isReplayOpen}
-        onClose={() => setIsReplayOpen(false)}
-        exams={exams}
-        subjectScores={subjectScores}
-        initialMetric={metric}
-        selectedProfile={selectedProfile}
-        accentKey={selectedProfile?.color_key === 'peach' ? 'peach' : 'sage'}
-      />
     </div>
   )
 }
