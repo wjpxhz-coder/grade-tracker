@@ -88,7 +88,7 @@ export function ReplayPage() {
   const metrics: TrendMetric[] = ['total', ...SUBJECT_CODES]
 
   const chartTheme = resolvedTheme === 'dark'
-    ? { muted: '#aeb9b1', line: '#3d4942', split: '#26332c', tooltip: 'rgba(23,30,26,.98)', ink: '#eef3ef' }
+    ? { muted: '#aeb9b1', line: '#3d4942', split: '#232e27', tooltip: 'rgba(23,30,26,.98)', ink: '#eef3ef' }
     : { muted: '#58655d', line: '#cbd3cc', split: '#eef2ed', tooltip: 'rgba(255,254,251,.98)', ink: '#17231d' }
 
   const accentColor = selectedProfile?.color_key === 'peach'
@@ -212,13 +212,13 @@ export function ReplayPage() {
     aria: { enabled: true },
     color: [accentColor, resolvedTheme === 'dark' ? '#e19b7d' : '#a65f46'],
     grid: [
-      { left: 45, right: 20, top: 32, height: '36%' },
-      { left: 45, right: 20, top: '56%', height: '34%' },
+      { left: 52, right: 24, top: 34, height: '40%' },
+      { left: 52, right: 24, top: '56%', height: '36%' },
     ],
     legend: {
-      top: 0,
+      top: 2,
       data: [displayMode === 'percentage' ? '得分率' : '原始分', '年级排名'],
-      textStyle: { color: chartTheme.muted, fontSize: 11 },
+      textStyle: { color: chartTheme.muted, fontSize: 12 },
     },
     tooltip: {
       trigger: 'axis',
@@ -251,7 +251,7 @@ export function ReplayPage() {
         type: 'category',
         gridIndex: 1,
         data: labels,
-        axisLabel: { color: chartTheme.muted, fontSize: 10 },
+        axisLabel: { color: chartTheme.muted, fontSize: 11 },
         axisTick: { show: false },
         axisLine: { lineStyle: { color: chartTheme.line } },
       },
@@ -263,8 +263,8 @@ export function ReplayPage() {
         name: displayMode === 'percentage' ? '得分率 %' : '分数',
         min: displayMode === 'percentage' ? 0 : undefined,
         max: displayMode === 'percentage' ? 100 : undefined,
-        nameTextStyle: { color: chartTheme.muted, fontSize: 10 },
-        axisLabel: { color: chartTheme.muted, fontSize: 10 },
+        nameTextStyle: { color: chartTheme.muted, fontSize: 11 },
+        axisLabel: { color: chartTheme.muted, fontSize: 11 },
         splitLine: { lineStyle: { color: chartTheme.split } },
       },
       {
@@ -274,8 +274,8 @@ export function ReplayPage() {
         inverse: true,
         min: 1,
         minInterval: 1,
-        nameTextStyle: { color: chartTheme.muted, fontSize: 10 },
-        axisLabel: { color: chartTheme.muted, fontSize: 10 },
+        nameTextStyle: { color: chartTheme.muted, fontSize: 11 },
+        axisLabel: { color: chartTheme.muted, fontSize: 11 },
         splitLine: { lineStyle: { color: chartTheme.split } },
       },
     ],
@@ -287,11 +287,11 @@ export function ReplayPage() {
         yAxisIndex: 0,
         smooth: 0.25,
         connectNulls: false,
-        symbolSize: 7,
-        lineStyle: { width: 3, color: accentColor },
+        symbolSize: 8,
+        lineStyle: { width: 3.5, color: accentColor },
         areaStyle: {
           color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [
-            { offset: 0, color: 'rgba(79, 124, 106, 0.22)' },
+            { offset: 0, color: 'rgba(79, 124, 106, 0.26)' },
             { offset: 1, color: 'rgba(79, 124, 106, 0.01)' },
           ]),
         },
@@ -299,13 +299,13 @@ export function ReplayPage() {
           const isCurrent = idx === safeIndex
           return {
             value,
-            symbolSize: isCurrent ? 13 : 6,
+            symbolSize: isCurrent ? 14 : 7,
             itemStyle: isCurrent
               ? {
                   color: accentColor,
                   borderColor: chartTheme.tooltip,
-                  borderWidth: 3,
-                  shadowBlur: 8,
+                  borderWidth: 4,
+                  shadowBlur: 10,
                   shadowColor: accentColor,
                 }
               : { color: accentColor },
@@ -320,19 +320,19 @@ export function ReplayPage() {
         smooth: 0.25,
         connectNulls: false,
         symbol: 'diamond',
-        symbolSize: 7,
-        lineStyle: { width: 2.2 },
+        symbolSize: 8,
+        lineStyle: { width: 2.5 },
         data: rankValues.map((value, idx) => {
           const isCurrent = idx === safeIndex
           return {
             value,
-            symbolSize: isCurrent ? 13 : 6,
+            symbolSize: isCurrent ? 14 : 7,
             itemStyle: isCurrent
               ? {
                   borderColor: chartTheme.tooltip,
-                  borderWidth: 3,
-                  shadowBlur: 8,
-                  shadowColor: 'rgba(166, 95, 70, 0.4)',
+                  borderWidth: 4,
+                  shadowBlur: 10,
+                  shadowColor: 'rgba(166, 95, 70, 0.5)',
                 }
               : undefined,
           }
@@ -355,11 +355,11 @@ export function ReplayPage() {
 
   return (
     <div className="replay-page">
-      {/* Top Navbar */}
+      {/* Full-bleed Top Navigation */}
       <header className="replay-page__topbar">
         <div className="replay-page__topbar-left">
           <Link to="/" className="replay-page__back-btn" aria-label="返回总览">
-            <ArrowLeft size={18} />
+            <ArrowLeft size={17} />
             <span>返回总览</span>
           </Link>
           <div className="replay-page__heading">
@@ -371,7 +371,7 @@ export function ReplayPage() {
         </div>
 
         <div className="replay-page__topbar-right">
-          {/* Metric Selector Tabs */}
+          {/* Metric Tabs */}
           <div className="replay-page__metric-tabs" role="tablist" aria-label="科目切换">
             {metrics.map((item) => (
               <button
@@ -410,7 +410,7 @@ export function ReplayPage() {
       {/* Main Content Area */}
       {points.length === 0 ? (
         <main className="replay-page__empty">
-          <BookOpenCheck size={44} />
+          <BookOpenCheck size={48} />
           <h2>还没有{METRIC_LABELS[metric]}记录</h2>
           <p>请选择其他科目，或先在主页录入考试成绩。</p>
           <Link to="/" className="button button--primary">
@@ -419,7 +419,7 @@ export function ReplayPage() {
         </main>
       ) : (
         <main className="replay-page__stage">
-          {/* Spotlight Hero Card */}
+          {/* Integrated Spotlight Header Strip */}
           {currentPoint && (
             <section className="replay-card" aria-live="polite">
               <div className="replay-card__header">
@@ -432,6 +432,18 @@ export function ReplayPage() {
                   {milestoneTag && <span className="replay-card__milestone">{milestoneTag}</span>}
                 </div>
                 <h2 className="replay-card__title">{currentPoint.examName}</h2>
+                {/* Subject Breakdown if comprehensive */}
+                {currentExam?.kind === 'comprehensive' && currentSubjectScores.length > 0 && (
+                  <div className="replay-card__subjects">
+                    {currentSubjectScores.map((subj) => (
+                      <span key={subj.id} className="replay-card__subject-chip">
+                        <strong>{METRIC_LABELS[subj.subject as SubjectCode] ?? subj.subject}</strong>
+                        <span>{subj.score ?? '—'}{subj.full_score ? `/${subj.full_score}` : ''}</span>
+                        {subj.rank_value && <small>#{subj.rank_value}</small>}
+                      </span>
+                    ))}
+                  </div>
+                )}
               </div>
 
               <div className="replay-card__stats">
@@ -483,23 +495,10 @@ export function ReplayPage() {
                   ) : null}
                 </div>
               </div>
-
-              {/* Subject Breakdown */}
-              {currentExam?.kind === 'comprehensive' && currentSubjectScores.length > 0 && (
-                <div className="replay-card__subjects">
-                  {currentSubjectScores.map((subj) => (
-                    <span key={subj.id} className="replay-card__subject-chip">
-                      <strong>{METRIC_LABELS[subj.subject as SubjectCode] ?? subj.subject}</strong>
-                      <span>{subj.score ?? '—'}{subj.full_score ? `/${subj.full_score}` : ''}</span>
-                      {subj.rank_value && <small>#{subj.rank_value}</small>}
-                    </span>
-                  ))}
-                </div>
-              )}
             </section>
           )}
 
-          {/* ECharts Curve Container */}
+          {/* Full-bleed ECharts Canvas */}
           <section className="replay-chart-stage">
             <ReactEChartsCore
               echarts={echarts}
@@ -519,7 +518,7 @@ export function ReplayPage() {
         </main>
       )}
 
-      {/* Clean Bottom Playback Dock */}
+      {/* Full-width Playback Dock */}
       {points.length > 0 && (
         <footer className="replay-dock">
           {/* Timeline Scrubber */}
