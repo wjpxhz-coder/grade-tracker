@@ -200,13 +200,26 @@ export function DashboardPage() {
             <div className="section-heading__actions">
               <Link
                 to={`/replay?metric=${metric}`}
-                className="trend-replay-pill"
+                className="trend-replay-btn"
                 title="动态回放总成绩曲线与成长轨迹"
               >
-                <Play size={13} className="trend-replay-pill__icon" />
+                <Play size={13} className="trend-replay-btn__icon" fill="currentColor" />
                 <span>动态回放</span>
               </Link>
-              <span className="section-heading__hint"><CalendarDays size={14} />点击数据点查看详情</span>
+              <button
+                type="button"
+                className="trend-datapoints-btn"
+                onClick={() => {
+                  const el = document.getElementById('recent-heading')
+                  if (el) {
+                    el.scrollIntoView({ behavior: 'smooth', block: 'start' })
+                  }
+                }}
+                title="查看数据点与时间轴明细（也可直接点击图表数据点）"
+              >
+                <CalendarDays size={14} aria-hidden="true" />
+                <span>查看数据点</span>
+              </button>
             </div>
           </div>
           <div className="metric-tabs" role="tablist" aria-label="趋势科目">

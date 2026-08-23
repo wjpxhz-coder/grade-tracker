@@ -1492,41 +1492,112 @@ strong,
 }
 
 /* ==========================================================================
-   Replay Page & Trigger Button (Refined & Seamless)
+   Dashboard Trend Header Actions & Replay Trigger (Design Spec Aligned)
    ========================================================================== */
+.section-heading__actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+/* 主按钮样式（绿色实心），突出其重要性 */
+.trend-replay-btn,
 .trend-replay-pill {
   display: inline-flex;
   align-items: center;
+  justify-content: center;
   gap: 6px;
-  padding: 5px 12px;
-  border-radius: 99px;
-  background: var(--sage-soft);
-  color: var(--sage-dark);
-  border: 1px solid color-mix(in srgb, var(--sage) 28%, transparent);
+  min-height: 36px;
+  padding: 6px 14px;
+  border-radius: var(--radius-sm);
+  background: var(--sage);
+  color: #ffffff;
+  border: 1px solid var(--sage);
   font-size: .8125rem;
   font-weight: 650;
   text-decoration: none;
+  cursor: pointer;
+  white-space: nowrap;
   transition: all var(--duration-fast) cubic-bezier(0.16, 1, 0.3, 1);
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+  box-shadow: 0 2px 8px color-mix(in srgb, var(--sage) 24%, transparent);
 }
 
+:root[data-theme='dark'] .trend-replay-btn,
+:root[data-theme='dark'] .trend-replay-pill {
+  color: #111713;
+}
+
+.trend-replay-btn:hover,
 .trend-replay-pill:hover {
-  background: var(--sage);
-  color: #fff;
-  border-color: var(--sage);
+  background: color-mix(in srgb, var(--sage) 88%, black);
+  border-color: color-mix(in srgb, var(--sage) 88%, black);
+  color: #ffffff;
   transform: translateY(-1px);
-  box-shadow: 0 3px 10px rgba(79, 124, 106, 0.28);
+  box-shadow: 0 4px 12px color-mix(in srgb, var(--sage) 36%, transparent);
 }
 
+:root[data-theme='dark'] .trend-replay-btn:hover,
+:root[data-theme='dark'] .trend-replay-pill:hover {
+  background: color-mix(in srgb, var(--sage) 88%, white);
+  border-color: color-mix(in srgb, var(--sage) 88%, white);
+  color: #111713;
+}
+
+.trend-replay-btn__icon,
 .trend-replay-pill__icon {
   fill: currentColor;
   flex-shrink: 0;
   transition: transform var(--duration-fast) ease;
 }
 
+.trend-replay-btn:hover .trend-replay-btn__icon,
 .trend-replay-pill:hover .trend-replay-pill__icon {
-  fill: #fff;
-  transform: scale(1.1);
+  transform: scale(1.12);
+}
+
+/* 次按钮样式（描边或文字），形成层级对比 */
+.trend-datapoints-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-height: 36px;
+  padding: 6px 14px;
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  color: var(--ink);
+  border: 1px solid var(--line-control);
+  font-size: .8125rem;
+  font-weight: 550;
+  text-decoration: none;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all var(--duration-fast) cubic-bezier(0.16, 1, 0.3, 1);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
+}
+
+.trend-datapoints-btn > svg {
+  color: var(--muted);
+  flex-shrink: 0;
+  transition: color var(--duration-fast) ease;
+}
+
+.trend-datapoints-btn:hover {
+  background: var(--surface-hover);
+  border-color: var(--line-strong, var(--line));
+  color: var(--ink);
+  transform: translateY(-1px);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+}
+
+.trend-datapoints-btn:hover > svg {
+  color: var(--ink);
+}
+
+.trend-datapoints-btn:active,
+.trend-replay-btn:active {
+  transform: translateY(0);
 }
 
 .replay-page {

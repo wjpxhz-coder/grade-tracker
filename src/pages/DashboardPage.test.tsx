@@ -124,9 +124,14 @@ describe('DashboardPage', () => {
     expect(latestRow).toHaveTextContent('+15.0 个点')
   })
 
-  it('renders a link to the standalone full-page replay route', () => {
+  it('renders a link to the standalone full-page replay route and a data points button', () => {
     render(<MemoryRouter><DashboardPage /></MemoryRouter>)
     const replayLink = screen.getByRole('link', { name: /动态回放/ })
     expect(replayLink).toHaveAttribute('href', '/replay?metric=total')
+    expect(replayLink).toHaveClass('trend-replay-btn')
+
+    const dataPointsBtn = screen.getByRole('button', { name: /查看数据点/ })
+    expect(dataPointsBtn).toBeInTheDocument()
+    expect(dataPointsBtn).toHaveClass('trend-datapoints-btn')
   })
 })
