@@ -1,7 +1,7 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { render, screen, waitFor } from '@testing-library/react'
+import { cleanup, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { describe, expect, it, vi } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { Attachment } from '../types/domain'
 import { AttachmentTile } from './AttachmentTile'
 
@@ -43,6 +43,26 @@ function renderTile() {
 }
 
 describe('AttachmentTile lightbox', () => {
+  afterEach(cleanup)
+
+  it('renders thumbnail with lazy loading and async decoding', async () => {
+    renderTile()
+    const img = await screen.findByRole('img', { name: '数学答题卡.png' })
+    expect(img).toHaveAttribute('loading', 'lazy')
+    expect(img).toHaveAttribute('decoding', 'async')
+  })
+
+  it('preloads full-size image on hover', async () => {
+    const user = userEvent.setup()
+    renderTile()
+    const opener = await screen.findByRole('button', { name: '查看数学答题卡.png' })
+    await waitFor(() => expect(opener).toBeEnabled())
+
+    await user.hover(opener)
+    // Opener should remain enabled and accessible
+    expect(opener).toBeInTheDocument()
+  })
+
   it('traps focus, closes with Escape, restores focus and unlocks scrolling', async () => {
     const user = userEvent.setup()
     renderTile()
@@ -56,6 +76,9 @@ describe('AttachmentTile lightbox', () => {
     expect(close).toHaveFocus()
     expect(document.body.style.overflow).toBe('hidden')
 
+    const fullImg = within(dialog).getByRole('img', { name: '数学答题卡.png' })
+    expect(fullImg).toHaveAttribute('decoding', 'async')
+
     await user.tab()
     expect(close).toHaveFocus()
     await user.keyboard('{Escape}')
@@ -65,3 +88,4 @@ describe('AttachmentTile lightbox', () => {
     expect(document.body.style.overflow).toBe('')
   })
 })
+

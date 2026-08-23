@@ -22,5 +22,5 @@ export function ProfileAvatar({ profile, size, previewUrl }: ProfileAvatarProps)
   const initial = profile?.display_name?.trim().slice(0, 1) ?? '我'
 
   const imageUrl = previewUrl ?? avatarQuery.data
-  return <span className={className} aria-label={`${profile?.display_name ?? '用户'}头像`}>{imageUrl ? <img src={imageUrl} alt="" /> : initial}</span>
+  return <span className={className} aria-label={`${profile?.display_name ?? '用户'}头像`}>{imageUrl ? <img src={imageUrl} alt="" loading="lazy" decoding="async" /> : initial}</span>
 }

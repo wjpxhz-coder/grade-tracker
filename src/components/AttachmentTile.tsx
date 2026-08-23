@@ -66,10 +66,40 @@ export function AttachmentTile({ attachment, onDelete, canEdit }: {
     }
   }, [open])
 
+  const preloadedRef = useRef(false)
+  const preloadFullImage = () => {
+    if (preloadedRef.current || !urlQuery.data?.full) return
+    preloadedRef.current = true
+    const img = new Image()
+    img.src = urlQuery.data.full
+  }
+
   return (
     <article className="attachment-tile">
-      <button ref={openButtonRef} className="attachment-tile__image" type="button" onClick={() => setOpen(true)} disabled={!urlQuery.data?.full} aria-label={`查看${attachment.original_name}`}>
-        {urlQuery.data?.thumbnail ? <img src={urlQuery.data.thumbnail} alt={attachment.original_name} /> : <span><ImageOff size={25} />{urlQuery.isError ? '读取失败' : '正在读取'}</span>}
+      <button
+        ref={openButtonRef}
+        className="attachment-tile__image"
+        type="button"
+        onClick={() => setOpen(true)}
+        onMouseEnter={preloadFullImage}
+        onFocus={preloadFullImage}
+        onTouchStart={preloadFullImage}
+        disabled={!urlQuery.data?.full}
+        aria-label={`查看${attachment.original_name}`}
+      >
+        {urlQuery.data?.thumbnail ? (
+          <img
+            src={urlQuery.data.thumbnail}
+            alt={attachment.original_name}
+            loading="lazy"
+            decoding="async"
+          />
+        ) : (
+          <span>
+            <ImageOff size={25} />
+            {urlQuery.isError ? '读取失败' : '正在读取'}
+          </span>
+        )}
         <i><Maximize2 size={15} /></i>
       </button>
       <div><span>{attachment.subject ? `${SUBJECT_LABELS[attachment.subject]} · ` : ''}{ATTACHMENT_CATEGORY_LABELS[attachment.category]}</span><small>第 {attachment.page_order + 1} 页</small>{canEdit ? <button type="button" onClick={onDelete} aria-label={`删除${attachment.original_name}`}><Trash2 size={15} /></button> : null}</div>
@@ -91,7 +121,7 @@ export function AttachmentTile({ attachment, onDelete, canEdit }: {
               <button ref={closeButtonRef} className="icon-button" type="button" onClick={() => setOpen(false)} aria-label="关闭图片预览"><X /></button>
             </header>
             <div className="lightbox__canvas">
-              <img src={urlQuery.data.full} alt={attachment.original_name} />
+              <img src={urlQuery.data.full} alt={attachment.original_name} decoding="async" />
             </div>
           </div>
         </div>
