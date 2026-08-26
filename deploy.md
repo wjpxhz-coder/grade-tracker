@@ -49,7 +49,7 @@ GitHub Actions 监听到 `main` 更新，自动执行：
 
 ## 9. 验证部署
 等待部署工作流显示成功后，访问：
-👉 [https://wjpxhz-coder.github.io/grade-tracker/](https://wjpxhz-coder.github.io/grade-tracker/)
+👉 [https://chengji.kdns.fr/](https://chengji.kdns.fr/)（或备用 [https://wjpxhz-coder.github.io/grade-tracker/](https://wjpxhz-coder.github.io/grade-tracker/)）
 
 ## 10. 清除缓存
 若仍看到旧页面，浏览器使用 `Ctrl + F5` 强制刷新，避开缓存。
