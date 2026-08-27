@@ -1,6 +1,6 @@
 import { useQuery } from '@tanstack/react-query'
 import { useAuth } from '../contexts/AuthContext'
-import { createProfileAvatarUrl } from '../lib/api'
+import { createProfileAvatarUrl, getCachedAvatarUrl } from '../lib/api'
 import type { Profile } from '../types/domain'
 
 interface ProfileAvatarProps {
@@ -15,12 +15,28 @@ export function ProfileAvatar({ profile, size, previewUrl }: ProfileAvatarProps)
   const avatarQuery = useQuery({
     queryKey: ['profile-avatar', path],
     queryFn: () => createProfileAvatarUrl(path!),
+    initialData: () => (path ? getCachedAvatarUrl(path) : undefined),
+    initialDataUpdatedAt: () => (path && getCachedAvatarUrl(path) ? Date.now() : undefined),
     enabled: Boolean(user && path),
-    staleTime: 55 * 60 * 1000,
+    staleTime: 50 * 60 * 1000,
   })
   const className = `avatar avatar--${profile?.color_key ?? 'sage'}${size ? ` avatar--${size}` : ''}`
   const initial = profile?.display_name?.trim().slice(0, 1) ?? '我'
 
   const imageUrl = previewUrl ?? avatarQuery.data
-  return <span className={className} aria-label={`${profile?.display_name ?? '用户'}头像`}>{imageUrl ? <img src={imageUrl} alt="" loading="lazy" decoding="async" /> : initial}</span>
+  return (
+    <span className={className} aria-label={`${profile?.display_name ?? '用户'}头像`}>
+      {imageUrl ? (
+        <img
+          src={imageUrl}
+          alt=""
+          decoding="async"
+          fetchPriority={size === 'large' ? 'high' : 'auto'}
+        />
+      ) : (
+        initial
+      )}
+    </span>
+  )
 }
+
