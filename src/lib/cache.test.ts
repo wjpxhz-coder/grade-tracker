@@ -26,6 +26,20 @@ describe('clearWebsiteCache', () => {
     expect(remove).toHaveBeenCalledWith('images-v1')
   })
 
+  it('unregisters active service workers if available', async () => {
+    const unregister = vi.fn().mockResolvedValue(true)
+    const getRegistrations = vi.fn().mockResolvedValue([{ unregister }])
+    Object.defineProperty(navigator, 'serviceWorker', {
+      configurable: true,
+      value: { getRegistrations },
+    })
+
+    await clearWebsiteCache()
+
+    expect(getRegistrations).toHaveBeenCalledOnce()
+    expect(unregister).toHaveBeenCalledOnce()
+  })
+
   it('still clears temporary storage when Cache Storage is unavailable', async () => {
     window.sessionStorage.setItem('temporary-filter', 'math')
     Reflect.deleteProperty(window, 'caches')
