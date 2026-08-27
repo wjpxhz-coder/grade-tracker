@@ -1,10 +1,13 @@
+import { invalidateAvatarCache } from './avatarCache'
+
 /**
  * Removes data the app can safely recreate locally. User records and browser
- * preferences live elsewhere, so this deliberately does not touch localStorage.
+ * preferences live elsewhere.
  */
 export async function clearWebsiteCache(): Promise<void> {
   try {
     window.sessionStorage.clear()
+    invalidateAvatarCache()
   } catch {
     // Storage can be unavailable in private or restricted browser contexts.
   }
@@ -18,3 +21,4 @@ export async function clearWebsiteCache(): Promise<void> {
     // Cache Storage is optional and can be disabled by the browser.
   }
 }
+

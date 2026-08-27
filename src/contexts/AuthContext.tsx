@@ -1,7 +1,7 @@
 import type { Session, User } from '@supabase/supabase-js'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from 'react'
-import { getMembership, getProfile, listProfiles } from '../lib/api'
+import { getMembership, getProfile, listProfiles, prefetchProfileAvatar } from '../lib/api'
 import { isSupabaseConfigured, supabase } from '../lib/supabase'
 import type { Profile, SpaceMember } from '../types/domain'
 
@@ -62,6 +62,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     queryFn: listProfiles,
     enabled: Boolean(membershipQuery.data),
   })
+
+  useEffect(() => {
+    if (profileQuery.data?.avatar_path) {
+      void prefetchProfileAvatar(profileQuery.data.avatar_path)
+    }
+  }, [profileQuery.data?.avatar_path])
+
+  useEffect(() => {
+    const list = profilesQuery.data ?? []
+    for (const p of list) {
+      if (p.avatar_path) {
+        void prefetchProfileAvatar(p.avatar_path)
+      }
+    }
+  }, [profilesQuery.data])
 
   const value = useMemo<AuthContextValue>(
     () => ({

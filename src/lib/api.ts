@@ -17,6 +17,12 @@ import type {
 } from '../types/domain'
 import { ATTACHMENT_BUCKET, PROFILE_AVATAR_BUCKET, supabase } from './supabase'
 import { adaptHeic2Any, isHeicImage, optimizeImage } from './image'
+import {
+  getCachedAvatarUrl,
+  invalidateAvatarCache,
+  preloadImage,
+  setCachedAvatarUrl,
+} from './avatarCache'
 import type { SubjectCode } from './score'
 
 function fail(message: string, cause?: unknown): never {
@@ -130,15 +136,38 @@ export async function uploadProfileAvatar(userId: string, file: File): Promise<s
 }
 
 export async function deleteProfileAvatar(path: string): Promise<void> {
+  invalidateAvatarCache(path)
   const { error } = await supabase.storage.from(PROFILE_AVATAR_BUCKET).remove([path])
   if (error) fail('删除旧头像失败', error)
 }
 
-export async function createProfileAvatarUrl(path: string): Promise<string> {
+export async function createProfileAvatarUrl(path: string, forceRefresh = false): Promise<string> {
+  if (!forceRefresh) {
+    const cached = getCachedAvatarUrl(path)
+    if (cached) {
+      preloadImage(cached)
+      return cached
+    }
+  }
+
   const { data, error } = await supabase.storage.from(PROFILE_AVATAR_BUCKET).createSignedUrl(path, 60 * 60)
   if (error || !data?.signedUrl) fail('读取头像失败', error)
+
+  setCachedAvatarUrl(path, data.signedUrl, 60 * 60)
+  preloadImage(data.signedUrl)
   return data.signedUrl
 }
+
+export async function prefetchProfileAvatar(path: string | null | undefined): Promise<void> {
+  if (!path) return
+  try {
+    await createProfileAvatarUrl(path)
+  } catch {
+    // Silently ignore prefetch failures.
+  }
+}
+
+export { getCachedAvatarUrl, invalidateAvatarCache }
 
 export async function getMembership(userId: string): Promise<SpaceMember> {
   const { data, error } = await supabase

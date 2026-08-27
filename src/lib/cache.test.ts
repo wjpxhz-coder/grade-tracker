@@ -10,8 +10,9 @@ describe('clearWebsiteCache', () => {
     else Reflect.deleteProperty(window, 'caches')
   })
 
-  it('clears temporary storage and every Cache Storage entry', async () => {
+  it('clears temporary storage, avatar cache, and every Cache Storage entry', async () => {
     window.sessionStorage.setItem('temporary-filter', 'math')
+    window.localStorage.setItem('grade_tracker_avatar_urls_v1', JSON.stringify({ test: { url: 'abc', expiresAt: 9999999999999 } }))
     const keys = vi.fn().mockResolvedValue(['assets-v1', 'images-v1'])
     const remove = vi.fn().mockResolvedValue(true)
     Object.defineProperty(window, 'caches', { configurable: true, value: { keys, delete: remove } })
@@ -19,6 +20,7 @@ describe('clearWebsiteCache', () => {
     await clearWebsiteCache()
 
     expect(window.sessionStorage).toHaveLength(0)
+    expect(window.localStorage.getItem('grade_tracker_avatar_urls_v1')).toBeNull()
     expect(keys).toHaveBeenCalledOnce()
     expect(remove).toHaveBeenCalledWith('assets-v1')
     expect(remove).toHaveBeenCalledWith('images-v1')
