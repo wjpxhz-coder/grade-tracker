@@ -52,4 +52,19 @@ describe('AppShell navigation', () => {
     await user.click(screen.getByRole('button', { name: '跳到主要内容' }))
     expect(document.activeElement).toBe(document.querySelector('#app-content'))
   })
+
+  it('renders bottom nav items and highlights current path', () => {
+    renderShell('/')
+    const mobileNav = screen.getByRole('navigation', { name: '移动端导航' })
+    const homeLink = mobileNav.querySelector('a[href="/"]')
+    const examsLink = mobileNav.querySelector('a[href="/exams"]')
+    const addLink = mobileNav.querySelector('a[href="/exams/new"]')
+    const settingsLink = mobileNav.querySelector('a[href="/settings"]')
+
+    expect(homeLink).toHaveClass('bottom-nav__item--active')
+    expect(homeLink).toHaveAttribute('aria-current', 'page')
+    expect(examsLink).not.toHaveClass('bottom-nav__item--active')
+    expect(addLink).toHaveClass('bottom-nav__item--primary')
+    expect(settingsLink).not.toHaveClass('bottom-nav__item--active')
+  })
 })
