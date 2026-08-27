@@ -1,5 +1,5 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { Archive, Camera, Database, Download, HardDrive, LoaderCircle, LogOut, Monitor, MoonStar, Palette, RefreshCw, ShieldCheck, Sun, Trash2, UserRound } from 'lucide-react'
+import { Archive, Camera, CheckCircle2, Database, Download, HardDrive, LoaderCircle, LogOut, Monitor, MoonStar, Palette, RefreshCw, ShieldCheck, Smartphone, Sun, Trash2, UserRound } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { PageHeader } from '../components/PageHeader'
@@ -7,6 +7,7 @@ import { ProfileAvatar } from '../components/ProfileAvatar'
 import { useAuth } from '../contexts/AuthContext'
 import { useToast } from '../contexts/ToastContext'
 import { useTheme, type ThemePreference } from '../contexts/ThemeContext'
+import { usePwaInstall } from '../hooks/usePwaInstall'
 import { deleteProfileAvatar, downloadAttachment, getStorageUsage, loadExportSnapshot, signOut, updateMyProfile, uploadProfileAvatar } from '../lib/api'
 import { objectsToCsv } from '../lib/csv'
 import { buildDataExportArchive, downloadBlob } from '../lib/export'
@@ -25,6 +26,7 @@ export function SettingsPage() {
   const { profile, profiles, membership, refreshIdentity, user } = useAuth()
   const { showToast } = useToast()
   const { preference, resolvedTheme, setPreference } = useTheme()
+  const { isInstallable, isInstalled, isIos, promptInstall } = usePwaInstall()
   const queryClient = useQueryClient()
   const [exporting, setExporting] = useState('')
   const [clearingCache, setClearingCache] = useState(false)
@@ -207,6 +209,43 @@ export function SettingsPage() {
             <button type="button" aria-pressed={preference === 'system'} className={preference === 'system' ? 'theme-option theme-option--active' : 'theme-option'} onClick={() => setPreference('system' satisfies ThemePreference)}><Monitor /><span><strong>跟随系统</strong><small>随设备外观自动切换</small></span></button>
           </div>
           <p className="settings-note">选择会保存在当前浏览器中，不影响另一位成员的主题。</p>
+        </section>
+
+        <section className="panel settings-card settings-card--wide">
+          <div className="settings-card__heading">
+            <span><Smartphone /></span>
+            <div>
+              <h2>应用与安装</h2>
+              <p>支持将网页安装为桌面或手机独立应用，享受离线秒开与全屏体验。</p>
+            </div>
+          </div>
+          <div className="settings-action-row">
+            <div>
+              <strong>{isInstalled ? '已作为独立应用运行' : '安装为独立应用'}</strong>
+              <p>
+                {isInstalled
+                  ? '当前正处于独立应用窗口中，支持全屏运行与离线静态资源秒开。'
+                  : isInstallable
+                    ? '一键添加到桌面或手机主屏幕，免去浏览器地址栏干扰。'
+                    : isIos
+                      ? '在 iOS Safari 中点击底部「分享」按钮，选择「添加到主屏幕」即可安装。'
+                      : '若浏览器支持，可点击右侧按钮或在浏览器地址栏点击安装图标安装本应用。'}
+              </p>
+            </div>
+            {isInstalled ? (
+              <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '8px 14px', borderRadius: 999, background: 'rgba(63, 110, 90, 0.12)', color: 'var(--brand-dark, #3f6e5a)', fontWeight: 600, fontSize: '0.875rem' }}>
+                <CheckCircle2 size={16} /> 已安装应用
+              </span>
+            ) : isInstallable ? (
+              <button className="button button--primary" type="button" onClick={() => void promptInstall()}>
+                <Download size={17} /> 安装应用
+              </button>
+            ) : (
+              <button className="button button--secondary" type="button" onClick={() => showToast(isIos ? '请在 Safari 中点击分享按钮，选择「添加到主屏幕」' : '请使用支持 PWA 的现代浏览器（如 Chrome、Edge 或 Safari）并在菜单中选择安装', 'info')}>
+                <Download size={17} /> 安装指引
+              </button>
+            )}
+          </div>
         </section>
 
         <section className="panel settings-card settings-card--wide">
