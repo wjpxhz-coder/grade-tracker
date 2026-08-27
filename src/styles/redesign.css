@@ -214,6 +214,7 @@ strong,
   background: var(--sage);
   color: #fff;
   box-shadow: 0 8px 22px color-mix(in srgb, var(--sage) 20%, transparent);
+  transform: none;
 }
 
 .brand-mark strong { font-size: .875rem; letter-spacing: -.02em; }

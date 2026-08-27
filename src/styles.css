@@ -142,7 +142,7 @@ code { padding: 2px 6px; border: 1px solid var(--line); border-radius: 6px; back
 .login-hero__orb--one { top: 8%; right: 12%; width: 170px; height: 170px; background: var(--hero-orb); }
 .login-hero__orb--two { bottom: 11%; left: 12%; width: 110px; height: 110px; background: rgba(197,124,93,.11); }
 .login-hero__content { position: relative; z-index: 1; max-width: 570px; }
-.login-logo { display: grid; width: 58px; height: 58px; margin-bottom: 36px; place-items: center; border-radius: 18px; background: var(--sage); color: white; box-shadow: var(--shadow-md); transform: rotate(-4deg); }
+.login-logo { display: grid; width: 58px; height: 58px; margin-bottom: 36px; place-items: center; border-radius: 18px; background: var(--sage); color: white; box-shadow: var(--shadow-md); }
 .login-hero h1 { margin-bottom: 24px; font-size: clamp(2.7rem, 5vw, 5.2rem); font-weight: 700; letter-spacing: -.055em; line-height: 1.06; }
 .login-hero__content > p:not(.eyebrow) { max-width: 510px; color: var(--hero-copy); font-size: 1.04rem; line-height: 1.85; }
 .login-promise { display: inline-flex; align-items: center; gap: 9px; margin-top: 24px; padding: 11px 15px; border: 1px solid rgba(79,124,106,.18); border-radius: 12px; background: var(--glass); color: var(--sage-dark); font-size: .85rem; }
@@ -189,7 +189,7 @@ code { padding: 2px 6px; border: 1px solid var(--line); border-radius: 6px; back
 .app-shell { display: grid; min-height: 100vh; grid-template-columns: 248px minmax(0, 1fr); }
 .side-nav { position: sticky; top: 0; display: flex; height: 100vh; flex-direction: column; padding: 25px 17px; border-right: 1px solid var(--line); background: var(--nav-glass); backdrop-filter: blur(14px); }
 .brand-mark { display: flex; align-items: center; gap: 11px; padding: 2px 8px 25px; }
-.brand-mark > span, .mobile-brand > span { display: grid; width: 39px; height: 39px; place-items: center; border-radius: 13px; background: var(--sage); color: white; font-weight: 750; transform: rotate(-3deg); }
+.brand-mark > span, .mobile-brand > span { display: grid; width: 39px; height: 39px; place-items: center; border-radius: 13px; background: var(--sage); color: white; font-weight: 750; transform: none; }
 .brand-mark div { display: flex; flex-direction: column; }
 .brand-mark strong { font-size: .93rem; }
 .brand-mark small { margin-top: 3px; color: var(--muted); font-size: .69rem; }
