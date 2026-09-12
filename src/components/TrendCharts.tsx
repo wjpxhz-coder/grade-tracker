@@ -116,7 +116,7 @@ export function TrendCharts({
     },
     color: [resolvedAccent, resolvedTheme === 'dark' ? '#e19b7d' : '#a65f46'],
     grid: [
-      { left: 50, right: 26, top: 38, height: '29%' },
+      { left: 50, right: 26, top: 42, height: '28%' },
       { left: 50, right: 26, top: '59%', height: '27%' },
     ],
     legend: { top: 2, data: [displayMode === 'percentage' ? '得分率' : '原始分', '年级排名'], textStyle: { color: chartTheme.muted } },
@@ -173,9 +173,30 @@ export function TrendCharts({
         cursor: 'pointer',
         lineStyle: { width: 3 },
         areaStyle: { opacity: 0.07 },
+        label: {
+          show: true,
+          position: 'top',
+          distance: 6,
+          fontSize: 11,
+          fontWeight: 600,
+          color: resolvedAccent,
+          formatter: (params) => {
+            const index = Number(params.dataIndex ?? 0)
+            const point = points[index]
+            if (!point) return ''
+            if (displayMode === 'percentage') {
+              return point.scoreRate === null ? '' : `${point.scoreRate.toFixed(1)}%`
+            }
+            return point.score === null ? '' : `${point.score}分`
+          },
+        },
+        labelLayout: { hideOverlap: true },
         emphasis: {
           scale: 1.35,
           focus: 'series',
+          label: {
+            fontWeight: 700,
+          },
         },
         data: scoreValues.map((value, index) => {
           const isActive = points[index].examId === activeExamId
@@ -198,9 +219,27 @@ export function TrendCharts({
         symbolSize: 10,
         cursor: 'pointer',
         lineStyle: { width: 2.5 },
+        label: {
+          show: true,
+          position: 'top',
+          distance: 6,
+          fontSize: 11,
+          fontWeight: 600,
+          color: resolvedTheme === 'dark' ? '#e19b7d' : '#a65f46',
+          formatter: (params) => {
+            const index = Number(params.dataIndex ?? 0)
+            const point = points[index]
+            if (!point || point.rank === null) return ''
+            return `${point.rank}名`
+          },
+        },
+        labelLayout: { hideOverlap: true },
         emphasis: {
           scale: 1.35,
           focus: 'series',
+          label: {
+            fontWeight: 700,
+          },
         },
         data: points.map((point) => {
           const isActive = point.examId === activeExamId
