@@ -67,4 +67,27 @@ describe('AppShell navigation', () => {
     expect(addLink).toHaveClass('bottom-nav__item--primary')
     expect(settingsLink).not.toHaveClass('bottom-nav__item--active')
   })
+
+  it('toggles sidebar collapse and expansion correctly', async () => {
+    localStorage.clear()
+    const user = userEvent.setup()
+    renderShell('/')
+
+    const shell = document.querySelector('.app-shell')
+    expect(shell).not.toHaveClass('app-shell--collapsed')
+
+    // Click collapse button in side-nav
+    const collapseBtn = screen.getByRole('button', { name: '向左隐藏侧边栏' })
+    await user.click(collapseBtn)
+
+    expect(shell).toHaveClass('app-shell--collapsed')
+    expect(localStorage.getItem('sidebar_collapsed')).toBe('true')
+
+    // Find and click the expand button in topbar
+    const expandBtn = screen.getAllByRole('button', { name: '展开侧边栏' })[0]
+    await user.click(expandBtn)
+
+    expect(shell).not.toHaveClass('app-shell--collapsed')
+    expect(localStorage.getItem('sidebar_collapsed')).toBe('false')
+  })
 })
