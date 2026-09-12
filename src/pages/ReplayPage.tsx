@@ -303,7 +303,8 @@ export function ReplayPage() {
       textStyle: { color: chartTheme.muted, fontSize: 12 },
     },
     tooltip: {
-      trigger: 'axis',
+      trigger: 'item',
+      confine: true,
       backgroundColor: chartTheme.tooltip,
       borderColor: chartTheme.line,
       textStyle: { color: chartTheme.ink },
@@ -370,7 +371,12 @@ export function ReplayPage() {
         smooth: 0.25,
         connectNulls: false,
         symbolSize: 8,
+        cursor: 'pointer',
         lineStyle: { width: 3.5, color: accentColor },
+        emphasis: {
+          scale: 1.35,
+          focus: 'series',
+        },
         areaStyle: {
           color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [
             { offset: 0, color: 'rgba(79, 124, 106, 0.26)' },
@@ -403,7 +409,12 @@ export function ReplayPage() {
         connectNulls: false,
         symbol: 'diamond',
         symbolSize: 8,
+        cursor: 'pointer',
         lineStyle: { width: 2.5 },
+        emphasis: {
+          scale: 1.35,
+          focus: 'series',
+        },
         data: rankValues.map((value, idx) => {
           const isCurrent = idx === safeIndex
           return {
