@@ -1,5 +1,5 @@
-import { ClipboardList, LockKeyhole, Plus, Settings } from 'lucide-react'
-import { useEffect, type ReactNode } from 'react'
+import { ChevronRight, ClipboardList, LockKeyhole, PanelLeftClose, PanelLeftOpen, Plus, Settings } from 'lucide-react'
+import { useEffect, useState, type ReactNode } from 'react'
 import { Link, Outlet, useLocation } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
 import { useStudentScope } from '../contexts/StudentScopeContext'
@@ -104,6 +104,32 @@ export function AppShell() {
   const { studentId, setStudentId } = useStudentScope()
   const location = useLocation()
   const showScope = location.pathname === '/' || location.pathname === '/exams'
+  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState<boolean>(() => {
+    try {
+      return localStorage.getItem('sidebar_collapsed') === 'true'
+    } catch {
+      return false
+    }
+  })
+
+  const toggleSidebar = (collapsed?: boolean) => {
+    setIsSidebarCollapsed((prev) => {
+      const next = typeof collapsed === 'boolean' ? collapsed : !prev
+      try {
+        localStorage.setItem('sidebar_collapsed', String(next))
+      } catch {
+        // ignore
+      }
+      return next
+    })
+  }
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      window.dispatchEvent(new Event('resize'))
+    }, 260)
+    return () => clearTimeout(timer)
+  }, [isSidebarCollapsed])
 
   useEffect(() => {
     let frameId = 0
@@ -140,13 +166,24 @@ export function AppShell() {
   }
 
   return (
-    <div className="app-shell">
+    <div className={`app-shell${isSidebarCollapsed ? ' app-shell--collapsed' : ''}`}>
       <button className="skip-link" type="button" onClick={() => document.getElementById('app-content')?.focus()}>跳到主要内容</button>
-      <aside className="side-nav">
-        <Link className="brand-mark" to="/" aria-label="我们的成绩手账，返回总览">
-          <span>芽</span>
-          <div><strong>我们的成绩手账</strong><small>一起看见成长</small></div>
-        </Link>
+      <aside className="side-nav" aria-label="桌面端侧边栏">
+        <div className="side-nav__header">
+          <Link className="brand-mark" to="/" aria-label="我们的成绩手账，返回总览">
+            <span>芽</span>
+            <div><strong>我们的成绩手账</strong><small>一起看见成长</small></div>
+          </Link>
+          <button
+            type="button"
+            className="side-nav__collapse-btn"
+            onClick={() => toggleSidebar(true)}
+            aria-label="向左隐藏侧边栏"
+            title="向左隐藏侧边栏"
+          >
+            <PanelLeftClose size={18} aria-hidden="true" />
+          </button>
+        </div>
         <nav aria-label="主要导航">
           {navItems.map(({ to, label, icon: Icon, primary }) => {
             const active = isSectionActive(to)
@@ -169,15 +206,41 @@ export function AppShell() {
         </Link>
       </aside>
 
+      {isSidebarCollapsed && (
+        <button
+          type="button"
+          className="sidebar-edge-trigger"
+          onClick={() => toggleSidebar(false)}
+          aria-label="展开侧边栏"
+          title="展开侧边栏"
+        >
+          <ChevronRight size={16} aria-hidden="true" />
+        </button>
+      )}
+
       <main id="app-content" className="app-main" tabIndex={-1}>
         <header className="shell-topbar">
-          <Link className="mobile-brand" to="/" aria-label="返回总览"><span>芽</span><strong>成绩手账</strong></Link>
-          {showScope ? (
-            <div className="shell-scope">
-              <span className="shell-scope__label">查看范围</span>
-              <PersonSwitch profiles={profiles} value={studentId} onChange={setStudentId} />
-            </div>
-          ) : <div className="shell-topbar__title">我们的成长空间</div>}
+          <div className="shell-topbar__left">
+            {isSidebarCollapsed && (
+              <button
+                type="button"
+                className="shell-sidebar-trigger"
+                onClick={() => toggleSidebar(false)}
+                aria-label="展开侧边栏"
+                title="展开侧边栏"
+              >
+                <PanelLeftOpen size={18} aria-hidden="true" />
+                <span>展开侧边栏</span>
+              </button>
+            )}
+            <Link className="mobile-brand" to="/" aria-label="返回总览"><span>芽</span><strong>成绩手账</strong></Link>
+            {showScope ? (
+              <div className="shell-scope">
+                <span className="shell-scope__label">查看范围</span>
+                <PersonSwitch profiles={profiles} value={studentId} onChange={setStudentId} />
+              </div>
+            ) : <div className="shell-topbar__title">我们的成长空间</div>}
+          </div>
           <div className="shell-topbar__status"><LockKeyhole size={14} aria-hidden="true" /><span>双人私密空间</span></div>
         </header>
         <Outlet />
