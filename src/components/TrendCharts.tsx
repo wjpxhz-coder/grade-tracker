@@ -121,7 +121,8 @@ export function TrendCharts({
     ],
     legend: { top: 2, data: [displayMode === 'percentage' ? '得分率' : '原始分', '年级排名'], textStyle: { color: chartTheme.muted } },
     tooltip: {
-      trigger: 'axis',
+      trigger: 'item',
+      confine: true,
       renderMode: 'richText',
       backgroundColor: chartTheme.tooltip,
       borderColor: chartTheme.line,
@@ -130,6 +131,7 @@ export function TrendCharts({
         const params = Array.isArray(raw) ? raw : [raw]
         const index = Number((params[0] as { dataIndex?: number })?.dataIndex ?? 0)
         const point = points[index]
+        if (!point) return ''
         const scoreText = point.score === null ? '未录入' : `${point.score}${point.maxScore === null ? '' : ` / ${point.maxScore}`}`
         const rateText = point.scoreRate === null ? '—' : `${point.scoreRate.toFixed(1)}%`
         const scoreDelta = displayMode === 'percentage' ? point.scoreRateChange : point.scoreChange
@@ -167,16 +169,20 @@ export function TrendCharts({
         yAxisIndex: 0,
         smooth: 0.25,
         connectNulls: false,
-        symbolSize: 9,
+        symbolSize: 10,
+        cursor: 'pointer',
         lineStyle: { width: 3 },
         areaStyle: { opacity: 0.07 },
-        emphasis: { focus: 'series' },
+        emphasis: {
+          scale: 1.35,
+          focus: 'series',
+        },
         data: scoreValues.map((value, index) => {
           const isActive = points[index].examId === activeExamId
           return {
             value,
             examId: points[index].examId,
-            symbolSize: isActive ? 15 : 9,
+            symbolSize: isActive ? 16 : 10,
             itemStyle: isActive ? { borderColor: chartTheme.tooltip, borderWidth: 4 } : undefined,
           }
         }),
@@ -189,15 +195,19 @@ export function TrendCharts({
         smooth: 0.25,
         connectNulls: false,
         symbol: 'diamond',
-        symbolSize: 9,
+        symbolSize: 10,
+        cursor: 'pointer',
         lineStyle: { width: 2.5 },
-        emphasis: { focus: 'series' },
+        emphasis: {
+          scale: 1.35,
+          focus: 'series',
+        },
         data: points.map((point) => {
           const isActive = point.examId === activeExamId
           return {
             value: point.rank,
             examId: point.examId,
-            symbolSize: isActive ? 15 : 9,
+            symbolSize: isActive ? 16 : 10,
             itemStyle: isActive ? { borderColor: chartTheme.tooltip, borderWidth: 4 } : undefined,
           }
         }),
