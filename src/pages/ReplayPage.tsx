@@ -373,6 +373,25 @@ export function ReplayPage() {
         symbolSize: 8,
         cursor: 'pointer',
         lineStyle: { width: 3.5, color: accentColor },
+        label: {
+          show: true,
+          position: 'top',
+          distance: 6,
+          fontSize: 11,
+          fontWeight: 600,
+          color: accentColor,
+          formatter: (params) => {
+            const index = Number(params.dataIndex ?? 0)
+            if (index > safeIndex) return ''
+            const point = points[index]
+            if (!point) return ''
+            if (displayMode === 'percentage') {
+              return point.scoreRate === null ? '' : `${point.scoreRate.toFixed(1)}%`
+            }
+            return point.score === null ? '' : `${point.score}分`
+          },
+        },
+        labelLayout: { hideOverlap: true },
         emphasis: {
           scale: 1.35,
           focus: 'series',
@@ -411,6 +430,22 @@ export function ReplayPage() {
         symbolSize: 8,
         cursor: 'pointer',
         lineStyle: { width: 2.5 },
+        label: {
+          show: true,
+          position: 'top',
+          distance: 6,
+          fontSize: 11,
+          fontWeight: 600,
+          color: resolvedTheme === 'dark' ? '#e19b7d' : '#a65f46',
+          formatter: (params) => {
+            const index = Number(params.dataIndex ?? 0)
+            if (index > safeIndex) return ''
+            const point = points[index]
+            if (!point || point.rank === null) return ''
+            return `${point.rank}名`
+          },
+        },
+        labelLayout: { hideOverlap: true },
         emphasis: {
           scale: 1.35,
           focus: 'series',

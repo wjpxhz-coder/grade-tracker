@@ -103,4 +103,35 @@ describe('TrendCharts', () => {
     expect(series[0].data?.[0].symbolSize).toBe(16)
     expect(series[1].data?.[0].symbolSize).toBe(16)
   })
+
+  it('displays score and rank labels on line nodes', () => {
+    capturedOption = null
+    render(
+      <MemoryRouter>
+        <TrendCharts exams={[mockExam]} subjectScores={mockScores} metric="total" />
+      </MemoryRouter>
+    )
+
+    const series = capturedOption?.series as Array<{
+      label?: {
+        show?: boolean
+        formatter?: (params: { dataIndex?: number }) => string
+      }
+      labelLayout?: { hideOverlap?: boolean }
+    }>
+
+    expect(series).toHaveLength(2)
+
+    // Score series label
+    expect(series[0].label?.show).toBe(true)
+    expect(series[0].labelLayout?.hideOverlap).toBe(true)
+    const scoreText = series[0].label?.formatter?.({ dataIndex: 0 })
+    expect(scoreText).toBe('560分')
+
+    // Rank series label
+    expect(series[1].label?.show).toBe(true)
+    expect(series[1].labelLayout?.hideOverlap).toBe(true)
+    const rankText = series[1].label?.formatter?.({ dataIndex: 0 })
+    expect(rankText).toBe('49名')
+  })
 })
