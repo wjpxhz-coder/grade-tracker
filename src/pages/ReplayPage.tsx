@@ -21,7 +21,7 @@ import {
   TrendingUp,
   Trophy,
 } from 'lucide-react'
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import { ErrorState } from '../components/ErrorState'
 import { LoadingScreen } from '../components/LoadingScreen'
@@ -83,14 +83,18 @@ export function ReplayPage() {
   const initialMetric = (searchParams.get('metric') as TrendMetric) || 'total'
   const [metric, setMetric] = useState<TrendMetric>(initialMetric)
   const [currentIndex, setCurrentIndex] = useState<number>(0)
+  const [progress, setProgress] = useState<number>(0)
   const [isPlaying, setIsPlaying] = useState<boolean>(true)
   const [playbackSpeed, setPlaybackSpeed] = useState<number>(1)
   const [isLoop, setIsLoop] = useState<boolean>(false)
   const [isFullscreen, setIsFullscreen] = useState<boolean>(false)
+  const [isDragging, setIsDragging] = useState<boolean>(false)
   const [isLandscape, setIsLandscape] = useState<boolean>(() => {
     if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') return false
     return window.matchMedia('(orientation: landscape)').matches
   })
+
+  const trackRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     const handleFsChange = () => {
@@ -189,26 +193,110 @@ export function ReplayPage() {
     setDisplayMode(suggestedMode)
   }, [suggestedMode, metric])
 
-  // Timer for progression
+  const handleSeek = useCallback((index: number) => {
+    const safeTarget = Math.max(0, Math.min(index, points.length - 1))
+    setCurrentIndex(safeTarget)
+    setProgress(safeTarget)
+    setIsPlaying(false)
+  }, [points.length])
+
+  // Continuous smooth playback via requestAnimationFrame
   useEffect(() => {
-    if (!isPlaying || points.length <= 1) return
+    if (!isPlaying || isDragging || points.length <= 1) return
 
-    const intervalTime = Math.max(700, Math.round(1800 / playbackSpeed))
-    const timer = setInterval(() => {
-      setCurrentIndex((prev) => {
-        if (prev < points.length - 1) {
-          return prev + 1
+    const maxIndex = points.length - 1
+    const stepDuration = Math.max(600, Math.round(1800 / playbackSpeed))
+    let animationFrameId: number
+    let lastTime = performance.now()
+    let isDwelling = false
+    let dwellTimer: ReturnType<typeof setTimeout> | null = null
+
+    const step = (currentTime: number) => {
+      if (isDwelling) return
+
+      const dt = currentTime - lastTime
+      lastTime = currentTime
+
+      setProgress((prev) => {
+        const next = prev + dt / stepDuration
+        if (next >= maxIndex) {
+          isDwelling = true
+          setCurrentIndex(maxIndex)
+          dwellTimer = setTimeout(() => {
+            if (isLoop) {
+              setCurrentIndex(0)
+              setProgress(0)
+              lastTime = performance.now()
+              isDwelling = false
+              animationFrameId = requestAnimationFrame(step)
+            } else {
+              setIsPlaying(false)
+            }
+          }, stepDuration)
+          return maxIndex
         }
-        if (isLoop) {
-          return 0
-        }
-        setIsPlaying(false)
-        return prev
+
+        const floorIdx = Math.floor(next)
+        setCurrentIndex((prevIdx) => (prevIdx !== floorIdx ? floorIdx : prevIdx))
+        return next
       })
-    }, intervalTime)
 
-    return () => clearInterval(timer)
-  }, [isPlaying, playbackSpeed, isLoop, points.length])
+      if (!isDwelling) {
+        animationFrameId = requestAnimationFrame(step)
+      }
+    }
+
+    animationFrameId = requestAnimationFrame(step)
+
+    return () => {
+      cancelAnimationFrame(animationFrameId)
+      if (dwellTimer) clearTimeout(dwellTimer)
+    }
+  }, [isPlaying, isDragging, points.length, playbackSpeed, isLoop])
+
+  // Pointer scrubbing interactions for smooth scrubbing
+  const updateProgressFromPointer = useCallback((clientX: number) => {
+    if (!trackRef.current || points.length <= 1) return
+    const rect = trackRef.current.getBoundingClientRect()
+    if (rect.width <= 0) return
+    const ratio = Math.max(0, Math.min(1, (clientX - rect.left) / rect.width))
+    const maxIndex = points.length - 1
+    const exactProgress = ratio * maxIndex
+    const targetIndex = Math.round(exactProgress)
+    setProgress(exactProgress)
+    setCurrentIndex(targetIndex)
+  }, [points.length])
+
+  const handlePointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (points.length <= 1 || !trackRef.current) return
+    setIsDragging(true)
+    setIsPlaying(false)
+    try {
+      e.currentTarget.setPointerCapture(e.pointerId)
+    } catch {
+      // ignore
+    }
+    updateProgressFromPointer(e.clientX)
+  }
+
+  const handlePointerMove = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (!isDragging) return
+    updateProgressFromPointer(e.clientX)
+  }
+
+  const handlePointerUp = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (!isDragging) return
+    setIsDragging(false)
+    try {
+      e.currentTarget.releasePointerCapture(e.pointerId)
+    } catch {
+      // ignore
+    }
+    const maxIndex = Math.max(0, points.length - 1)
+    const nearestIndex = Math.max(0, Math.min(maxIndex, Math.round(progress)))
+    setProgress(nearestIndex)
+    setCurrentIndex(nearestIndex)
+  }
 
   // Keyboard navigation
   useEffect(() => {
@@ -217,29 +305,31 @@ export function ReplayPage() {
 
       if (e.code === 'Space') {
         e.preventDefault()
-        setIsPlaying((prev) => !prev)
+        if (currentIndex >= points.length - 1 && !isPlaying) {
+          setCurrentIndex(0)
+          setProgress(0)
+          setIsPlaying(true)
+        } else {
+          setIsPlaying((prev) => !prev)
+        }
       } else if (e.code === 'ArrowLeft') {
         e.preventDefault()
-        setIsPlaying(false)
-        setCurrentIndex((prev) => Math.max(0, prev - 1))
+        handleSeek(Math.max(0, currentIndex - 1))
       } else if (e.code === 'ArrowRight') {
         e.preventDefault()
-        setIsPlaying(false)
-        setCurrentIndex((prev) => Math.min(points.length - 1, prev + 1))
+        handleSeek(Math.min(points.length - 1, currentIndex + 1))
       } else if (e.code === 'Home') {
         e.preventDefault()
-        setIsPlaying(false)
-        setCurrentIndex(0)
+        handleSeek(0)
       } else if (e.code === 'End') {
         e.preventDefault()
-        setIsPlaying(false)
-        setCurrentIndex(Math.max(0, points.length - 1))
+        handleSeek(Math.max(0, points.length - 1))
       }
     }
 
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [points.length])
+  }, [currentIndex, points.length, isPlaying, handleSeek])
 
   if (isLoading) return <LoadingScreen />
   if (error) return <ErrorState error={error} onRetry={() => void refetch()} />
@@ -286,11 +376,15 @@ export function ReplayPage() {
   const labels = points.map((p) => p.examDate.slice(5).replace('-', '/'))
   const rawScoreValues = points.map((p, idx) => (idx <= safeIndex ? (displayMode === 'percentage' ? p.scoreRate : p.score) : null))
   const rankValues = points.map((p, idx) => (idx <= safeIndex ? p.rank : null))
+  const allScoreValues = points.map((p) => (displayMode === 'percentage' ? p.scoreRate : p.score))
+  const allRankValues = points.map((p) => p.rank)
 
   const option: EChartsOption = {
     animation: true,
-    animationDuration: 300,
-    animationDurationUpdate: 250,
+    animationDuration: Math.round(550 / playbackSpeed),
+    animationDurationUpdate: Math.round(500 / playbackSpeed),
+    animationEasing: 'cubicOut',
+    animationEasingUpdate: 'cubicOut',
     aria: { enabled: true },
     color: [accentColor, resolvedTheme === 'dark' ? '#e19b7d' : '#a65f46'],
     grid: [
@@ -363,6 +457,30 @@ export function ReplayPage() {
       },
     ],
     series: [
+      // 背景参考轨迹（全景虚线）
+      {
+        name: '总览背景',
+        type: 'line',
+        xAxisIndex: 0,
+        yAxisIndex: 0,
+        smooth: 0.25,
+        connectNulls: true,
+        symbol: 'circle',
+        symbolSize: 4,
+        silent: true,
+        tooltip: { show: false },
+        lineStyle: {
+          width: 1.5,
+          type: 'dashed',
+          color: resolvedTheme === 'dark' ? 'rgba(255, 255, 255, 0.12)' : 'rgba(0, 0, 0, 0.09)',
+        },
+        itemStyle: {
+          color: resolvedTheme === 'dark' ? 'rgba(255, 255, 255, 0.18)' : 'rgba(0, 0, 0, 0.12)',
+        },
+        data: allScoreValues,
+        z: 1,
+      },
+      // 主得分折线
       {
         name: displayMode === 'percentage' ? '得分率' : '原始分',
         type: 'line',
@@ -372,6 +490,7 @@ export function ReplayPage() {
         connectNulls: false,
         symbolSize: 8,
         cursor: 'pointer',
+        z: 3,
         lineStyle: { width: 3.5, color: accentColor },
         label: {
           show: true,
@@ -412,13 +531,37 @@ export function ReplayPage() {
                   color: accentColor,
                   borderColor: chartTheme.tooltip,
                   borderWidth: 4,
-                  shadowBlur: 10,
+                  shadowBlur: 14,
                   shadowColor: accentColor,
                 }
               : { color: accentColor },
           }
         }),
       },
+      // 背景参考轨迹（排名虚线）
+      {
+        name: '排名背景',
+        type: 'line',
+        xAxisIndex: 1,
+        yAxisIndex: 1,
+        smooth: 0.25,
+        connectNulls: true,
+        symbol: 'diamond',
+        symbolSize: 4,
+        silent: true,
+        tooltip: { show: false },
+        lineStyle: {
+          width: 1.5,
+          type: 'dashed',
+          color: resolvedTheme === 'dark' ? 'rgba(225, 155, 125, 0.22)' : 'rgba(166, 95, 70, 0.15)',
+        },
+        itemStyle: {
+          color: resolvedTheme === 'dark' ? 'rgba(225, 155, 125, 0.28)' : 'rgba(166, 95, 70, 0.18)',
+        },
+        data: allRankValues,
+        z: 1,
+      },
+      // 主排名折线
       {
         name: '年级排名',
         type: 'line',
@@ -429,6 +572,7 @@ export function ReplayPage() {
         symbol: 'diamond',
         symbolSize: 8,
         cursor: 'pointer',
+        z: 3,
         lineStyle: { width: 2.5 },
         label: {
           show: true,
@@ -459,8 +603,8 @@ export function ReplayPage() {
               ? {
                   borderColor: chartTheme.tooltip,
                   borderWidth: 4,
-                  shadowBlur: 10,
-                  shadowColor: 'rgba(166, 95, 70, 0.5)',
+                  shadowBlur: 14,
+                  shadowColor: 'rgba(166, 95, 70, 0.6)',
                 }
               : undefined,
           }
@@ -469,15 +613,11 @@ export function ReplayPage() {
     ],
   }
 
-  const handleSeek = (index: number) => {
-    setCurrentIndex(index)
-    setIsPlaying(false)
-  }
-
   const handleMetricChange = (newMetric: TrendMetric) => {
     setMetric(newMetric)
     setSearchParams({ metric: newMetric })
     setCurrentIndex(0)
+    setProgress(0)
     setIsPlaying(true)
   }
 
@@ -571,10 +711,10 @@ export function ReplayPage() {
                   </span>
                   {milestoneTag && <span className="replay-card__milestone">{milestoneTag}</span>}
                 </div>
-                <h2 className="replay-card__title">{currentPoint.examName}</h2>
+                <h2 key={currentPoint.examId} className="replay-card__title replay-card__animated-value">{currentPoint.examName}</h2>
                 {/* Subject Breakdown if comprehensive */}
                 {currentExam?.kind === 'comprehensive' && currentSubjectScores.length > 0 && (
-                  <div className="replay-card__subjects">
+                  <div key={`${currentPoint.examId}-subs`} className="replay-card__subjects replay-card__animated-value">
                     {currentSubjectScores.map((subj) => (
                       <span key={subj.id} className="replay-card__subject-chip">
                         <strong>{METRIC_LABELS[subj.subject as SubjectCode] ?? subj.subject}</strong>
@@ -592,7 +732,7 @@ export function ReplayPage() {
                   <span className="replay-card__stat-label">
                     <TrendingUp size={13} /> 成绩与得分率
                   </span>
-                  <div className="replay-card__stat-main">
+                  <div key={`${currentPoint.examId}-${displayMode}-score`} className="replay-card__stat-main replay-card__animated-value">
                     <strong>
                       {currentPoint.score !== null
                         ? formatScore(currentPoint.score, currentPoint.maxScore)
@@ -616,7 +756,7 @@ export function ReplayPage() {
                   <span className="replay-card__stat-label">
                     <Trophy size={13} /> 年级排名
                   </span>
-                  <div className="replay-card__stat-main">
+                  <div key={`${currentPoint.examId}-rank`} className="replay-card__stat-main replay-card__animated-value">
                     <strong>
                       {currentPoint.rank !== null ? `第 ${currentPoint.rank} 名` : '未录入'}
                     </strong>
@@ -641,11 +781,13 @@ export function ReplayPage() {
           {/* Full-bleed ECharts Canvas */}
           <section className="replay-chart-stage">
             <ReactEChartsCore
+              key={metric}
               echarts={echarts}
               option={option}
               className="replay-chart-canvas"
               style={{ width: '100%', height: '100%' }}
-              notMerge
+              notMerge={false}
+              lazyUpdate={true}
               onEvents={{
                 click: (params: { dataIndex?: number }) => {
                   if (typeof params.dataIndex === 'number') {
@@ -662,14 +804,29 @@ export function ReplayPage() {
       {points.length > 0 && (
         <footer className="replay-dock">
           {/* Timeline Scrubber */}
-          <div className="replay-dock__scrubber">
-            <div className="replay-dock__track">
+          <div
+            className={`replay-dock__scrubber ${isDragging ? 'replay-dock__scrubber--dragging' : ''}`}
+            onPointerDown={handlePointerDown}
+            onPointerMove={handlePointerMove}
+            onPointerUp={handlePointerUp}
+            onPointerCancel={handlePointerUp}
+          >
+            <div className="replay-dock__track" ref={trackRef}>
               <div
-                className="replay-dock__fill"
+                className={`replay-dock__fill ${isPlaying || isDragging ? 'replay-dock__fill--continuous' : ''}`}
                 style={{
-                  width: points.length > 1 ? `${(safeIndex / (points.length - 1)) * 100}%` : '100%',
+                  width: points.length > 1 ? `${(Math.min(progress, points.length - 1) / (points.length - 1)) * 100}%` : '100%',
                 }}
               />
+              {points.length > 1 && (
+                <div
+                  className="replay-dock__thumb"
+                  style={{
+                    left: `${(Math.min(progress, points.length - 1) / (points.length - 1)) * 100}%`,
+                  }}
+                  aria-hidden="true"
+                />
+              )}
               {points.map((point, index) => {
                 const isPassed = index <= safeIndex
                 const isCurrent = index === safeIndex
@@ -681,7 +838,10 @@ export function ReplayPage() {
                     style={{
                       left: points.length > 1 ? `${(index / (points.length - 1)) * 100}%` : '50%',
                     }}
-                    onClick={() => handleSeek(index)}
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      handleSeek(index)
+                    }}
                     title={`${point.examName} (${point.examDate})`}
                     aria-label={`跳转到第 ${index + 1} 场：${point.examName}`}
                   >
@@ -751,6 +911,7 @@ export function ReplayPage() {
                 onClick={() => {
                   if (safeIndex >= points.length - 1 && !isPlaying) {
                     setCurrentIndex(0)
+                    setProgress(0)
                     setIsPlaying(true)
                   } else {
                     setIsPlaying((prev) => !prev)
