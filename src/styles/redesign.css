@@ -2142,16 +2142,23 @@ strong,
 .replay-dock__scrubber {
   position: relative;
   width: 100%;
-  height: 16px;
+  height: 22px;
   display: flex;
   align-items: center;
   margin-bottom: 4px;
+  cursor: pointer;
+  user-select: none;
+  touch-action: none;
+}
+
+.replay-dock__scrubber--dragging {
+  cursor: grabbing;
 }
 
 .replay-dock__track {
   position: relative;
   width: 100%;
-  height: 5px;
+  height: 6px;
   background: var(--line);
   border-radius: 99px;
 }
@@ -2163,7 +2170,32 @@ strong,
   height: 100%;
   background: linear-gradient(90deg, var(--sage), #75ab93);
   border-radius: 99px;
-  transition: width .2s ease;
+  transition: width .22s cubic-bezier(0.16, 1, 0.3, 1);
+  pointer-events: none;
+}
+
+.replay-dock__fill--continuous {
+  transition: none !important;
+}
+
+.replay-dock__thumb {
+  position: absolute;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  width: 13px;
+  height: 13px;
+  border-radius: 50%;
+  background: #ffffff;
+  border: 2.5px solid var(--sage);
+  box-shadow: 0 0 10px rgba(130, 175, 151, 0.8), 0 2px 5px rgba(0, 0, 0, 0.25);
+  pointer-events: none;
+  z-index: 3;
+  transition: transform .15s ease;
+}
+
+.replay-dock__scrubber:hover .replay-dock__thumb,
+.replay-dock__scrubber--dragging .replay-dock__thumb {
+  transform: translate(-50%, -50%) scale(1.3);
 }
 
 .replay-dock__node {
@@ -2177,7 +2209,7 @@ strong,
   border: 2px solid var(--line);
   padding: 0;
   cursor: pointer;
-  transition: all .15s ease;
+  transition: all .2s cubic-bezier(0.16, 1, 0.3, 1);
   z-index: 2;
 }
 
@@ -2199,6 +2231,32 @@ strong,
   background: var(--sage);
   box-shadow: 0 0 0 3px var(--sage), 0 2px 7px rgba(0, 0, 0, 0.25);
   transform: translate(-50%, -50%) scale(1.15);
+  animation: replayNodePulse 2.2s infinite ease-in-out;
+}
+
+@keyframes replayNodePulse {
+  0%, 100% {
+    box-shadow: 0 0 0 3px var(--sage), 0 2px 7px rgba(0, 0, 0, 0.25);
+  }
+  50% {
+    box-shadow: 0 0 0 6px rgba(130, 175, 151, 0.42), 0 2px 10px rgba(0, 0, 0, 0.3);
+  }
+}
+
+@keyframes replayFadeUp {
+  from {
+    opacity: 0.35;
+    transform: translateY(3px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.replay-card__animated-value {
+  display: inline-block;
+  animation: replayFadeUp 0.26s cubic-bezier(0.16, 1, 0.3, 1) both;
 }
 
 .replay-dock__tooltip {
