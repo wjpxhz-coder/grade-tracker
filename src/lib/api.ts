@@ -56,6 +56,7 @@ const AI_ANALYSIS_ERROR_MESSAGES: Record<string, string> = {
   invalid_image_size: '图片大小不符合分析要求，请重新上传后重试。',
   summary_save_failed: '摘要保存失败，请稍后重试。',
   invalid_attachment_selection: '所选图片无效或已被删除，请刷新后重试。',
+  daily_rate_limited: '今日 AI 分析次数已达上限，请明天再试。',
   internal_error: 'AI 分析服务发生内部错误，请稍后重试。',
 }
 

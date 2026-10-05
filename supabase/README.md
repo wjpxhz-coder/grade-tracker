@@ -143,9 +143,10 @@ NEWAPI_BASE_URL=https://apihub.agnes-ai.com/v1
 NEWAPI_API_KEY=REPLACE_WITH_A_NEW_SECRET
 NEWAPI_API_MODE=chat
 AI_ANALYSIS_ALLOWED_ORIGINS=https://wjpxhz-coder.github.io,http://localhost:5173,http://localhost:4173
+AI_ANALYSIS_DAILY_LIMIT=30
 ```
 
-其中 `NEWAPI_BASE_URL` 可填写站点根地址、以 `/v1` 结尾的地址，或完整的 `/v1/responses` 地址；函数会安全拼接端点。线上地址必须使用 HTTPS。`NEWAPI_API_MODE` 只能是 `responses` 或 `chat`，省略时默认为 `responses`；建议先用不含真实成绩的合成图片探测代理兼容性，如果代理虽然暴露 Responses 路由却不完整支持所需字段，再固定为 `chat`，不要拿真实整图反复试错。`AI_ANALYSIS_ALLOWED_ORIGINS` 是逗号分隔的浏览器 Origin，不要包含路径。非法 URL 或 API mode 会返回 `server_not_configured`。
+其中 `NEWAPI_BASE_URL` 可填写站点根地址、以 `/v1` 结尾的地址，或完整的 `/v1/responses` 地址；函数会安全拼接端点。线上地址必须使用 HTTPS。`NEWAPI_API_MODE` 只能是 `responses` 或 `chat`，省略时默认为 `responses`；建议先用不含真实成绩的合成图片探测代理兼容性，如果代理虽然暴露 Responses 路由却不完整支持所需字段，再固定为 `chat`，不要拿真实整图反复试错。`AI_ANALYSIS_ALLOWED_ORIGINS` 是逗号分隔的浏览器 Origin，不要包含路径。`AI_ANALYSIS_DAILY_LIMIT` 为单用户每日最大模型调用次数（默认 30），用于防止 `force=true` 滥用消耗资费。非法 URL 或 API mode 会返回 `server_not_configured`。
 
 部署：
 
@@ -183,7 +184,7 @@ npx supabase functions deploy analyze-exam-images --use-api
 
 函数优先调用 OpenAI 兼容的 `/v1/responses` 或 `/v1/chat/completions`，以 `detail=high` 分析单图、使用严格 JSON Schema、`max_tokens=2048` 且 `store=false`。只有端点返回 404 或明确说明不支持 Responses API 时才回退 `/v1/chat/completions`；鉴权失败、限流、服务端错误和超时都不会回退或自动重试，避免重复计费。原图/base64、请求体、API key 和供应商响应正文不会写入日志。
 
-常见顶层错误码：`unauthorized`、`origin_not_allowed`、`exam_forbidden`、`exam_not_found`、`invalid_attachment_selection`、`too_many_attachments`、`server_not_configured` 与 `provider_error`。单图错误会出现在对应 item 的 `error`，其他图片仍可继续时返回 HTTP 200；全部图片均因供应商失败时返回 HTTP 502。
+常见顶层错误码：`unauthorized`、`origin_not_allowed`、`exam_forbidden`、`exam_not_found`、`invalid_attachment_selection`、`too_many_attachments`、`server_not_configured`、`daily_rate_limited` 与 `provider_error`。单图错误会出现在对应 item 的 `error`，其他图片仍可继续时返回 HTTP 200；全部图片均因限流或供应商失败时分别返回 HTTP 429 或 HTTP 502。
 
 ## 权限验收重点
 
@@ -192,4 +193,5 @@ npx supabase functions deploy analyze-exam-images --use-api
 - 未删除心得双方可读，但只有 `author_id` 能新增后修改、删除、查看或恢复自己已删除的心得。
 - Storage bucket 始终为 private，访问由路径内的 `space_id/exam_id` 与数据库权限共同校验。
 - `ai_attachment_insights` 对可见考试只读；只有完成 JWT/RLS 校验的 Edge Function 能写入，缓存键为实际文件 SHA-256、模型和提示词版本。
+- `ai_analysis_rate_limits` 与原子函数限制每位用户单日模型调用次数（默认 30 次），防止 `force=true` 恶意滥用或高频消耗外部 API 资金。
 - `save_exam`、删除和恢复都以 `version` 做乐观锁；冲突返回稳定消息 `version_conflict`。
