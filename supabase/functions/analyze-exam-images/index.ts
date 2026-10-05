@@ -1,6 +1,7 @@
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { createAuthClient, createUserClient } from "./client.ts";
 import { topLevelProviderError } from "./provider-error.ts";
+import { configuredDailyLimit, consumeRateLimit } from "./rate-limit.ts";
 
 const ATTACHMENT_BUCKET = "exam-attachments";
 const INSIGHTS_TABLE = "ai_attachment_insights";
@@ -1049,6 +1050,7 @@ Deno.serve(async (request) => {
     };
     let preferredApi: ProviderApiMode = configuredApiMode;
     let stopCode: string | null = null;
+    const dailyLimit = configuredDailyLimit(Deno.env.get("AI_ANALYSIS_DAILY_LIMIT"));
 
     for (const attachment of attachments) {
       if (stopCode) {
@@ -1124,6 +1126,15 @@ Deno.serve(async (request) => {
           }
         }
 
+        const rateLimitAllowed = await consumeRateLimit(
+          adminClient,
+          authData.user.id,
+          dailyLimit,
+        );
+        if (!rateLimitAllowed) {
+          throw new Error("daily_rate_limited");
+        }
+
         const dataUrl = `data:${attachment.mime_type};base64,${
           bytesToBase64(bytes)
         }`;
@@ -1156,6 +1167,7 @@ Deno.serve(async (request) => {
               "invalid_image_size",
               "cache_read_failed",
               "summary_save_failed",
+              "daily_rate_limited",
             ].includes(error.message)
           ? error.message
           : "analysis_failed";
@@ -1170,6 +1182,7 @@ Deno.serve(async (request) => {
             "invalid_provider_response",
             "cache_read_failed",
             "summary_save_failed",
+            "daily_rate_limited",
           ].includes(code)
         ) stopCode = code;
         console.error("analyze-exam-images item failed", {
@@ -1192,15 +1205,21 @@ Deno.serve(async (request) => {
       ? totalUsage
       : null;
     const providerError = topLevelProviderError(items);
+    const allRateLimited = items.length > 0 &&
+      items.every((item) => item.status === "failed" && item.error === "daily_rate_limited");
     return jsonResponse(request, {
-      ...(providerError ? { error: providerError } : {}),
+      ...(allRateLimited
+        ? { error: "daily_rate_limited" }
+        : providerError
+        ? { error: providerError }
+        : {}),
       examId,
       model: MODEL,
       promptVersion: PROMPT_VERSION,
       counts,
       items,
       usage,
-    }, providerError ? 502 : 200);
+    }, allRateLimited ? 429 : providerError ? 502 : 200);
   } catch (error) {
     if (error instanceof HttpError) {
       return jsonResponse(request, {

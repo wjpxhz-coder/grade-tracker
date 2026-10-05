@@ -29,6 +29,7 @@ const STOP_BATCH_ERROR_CODES = new Set([
   'provider_rate_limited',
   'provider_timeout',
   'provider_unreachable',
+  'daily_rate_limited',
 ])
 
 function hasImageChanged(attachment: Attachment, insight: AiAttachmentInsight | undefined): boolean {

@@ -12,7 +12,9 @@ vi.mock('../lib/api', () => ({
     ? 'AI 服务暂时不可用，请稍后重试。'
     : code === 'provider_rate_limited'
       ? 'AI 服务当前繁忙，请稍后重试。'
-      : (code ?? 'AI 图片分析失败，请稍后重试。'),
+      : code === 'daily_rate_limited'
+        ? '今日 AI 分析次数已达上限，请明天再试。'
+        : (code ?? 'AI 图片分析失败，请稍后重试。'),
   analyzeExamImages: vi.fn(),
   listAiAttachmentInsights: vi.fn(),
 }))
@@ -192,6 +194,34 @@ describe('AiImageAnalysisPanel', () => {
     const unrequestedCards = screen.getAllByRole('article', { name: '数学答题卡.png的 AI 图片摘要' })
     expect(await within(unrequestedCards[4]).findByText('AI 服务当前繁忙，请稍后重试。')).toBeInTheDocument()
     expect(screen.getAllByText('分析失败')).toHaveLength(2)
+  })
+
+  it('stops later batches when hitting daily rate limit and shows quota exceeded message', async () => {
+    const user = userEvent.setup()
+    const manyAttachments = Array.from({ length: 5 }, (_, index) => ({
+      ...attachments[0],
+      id: `limit-attachment-${index}`,
+      page_order: index,
+      sha256: (index + 20).toString(16).padStart(64, '0'),
+    }))
+    vi.mocked(listAiAttachmentInsights).mockResolvedValue([])
+    vi.mocked(analyzeExamImages).mockResolvedValue({
+      examId: 'exam-1', model: 'agnes-2.5-flash', promptVersion: 'exam-image-summary-v1',
+      counts: { total: 4, cached: 0, analyzed: 1, failed: 3 },
+      items: [
+        { attachmentId: manyAttachments[0].id, status: 'analyzed' as const },
+        { attachmentId: manyAttachments[1].id, status: 'failed', error: 'daily_rate_limited' },
+        { attachmentId: manyAttachments[2].id, status: 'failed', error: 'daily_rate_limited' },
+        { attachmentId: manyAttachments[3].id, status: 'failed', error: 'daily_rate_limited' },
+      ],
+      usage: null,
+    })
+    renderPanel({ items: manyAttachments })
+
+    await user.click(await screen.findByRole('button', { name: '分析全部未分析/需更新图片 (5)' }))
+    await waitFor(() => expect(analyzeExamImages).toHaveBeenCalledTimes(1))
+    const unrequestedCards = screen.getAllByRole('article', { name: '数学答题卡.png的 AI 图片摘要' })
+    expect(await within(unrequestedCards[4]).findByText('今日 AI 分析次数已达上限，请明天再试。')).toBeInTheDocument()
   })
 
   it('handles empty and permission-denied states without exposing analysis actions', async () => {
