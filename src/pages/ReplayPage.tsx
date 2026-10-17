@@ -397,11 +397,20 @@ export function ReplayPage() {
       textStyle: { color: chartTheme.muted, fontSize: 12 },
     },
     tooltip: {
-      trigger: 'item',
+      trigger: 'axis',
       confine: true,
       backgroundColor: chartTheme.tooltip,
       borderColor: chartTheme.line,
       textStyle: { color: chartTheme.ink },
+      axisPointer: {
+        type: 'line',
+        snap: true,
+        lineStyle: {
+          color: chartTheme.line,
+          type: 'dashed',
+          width: 1.5,
+        },
+      },
       formatter: (raw) => {
         const params = Array.isArray(raw) ? raw : [raw]
         const index = Number((params[0] as { dataIndex?: number })?.dataIndex ?? 0)
@@ -414,6 +423,9 @@ export function ReplayPage() {
         const rankText = point.rank === null ? '未录入' : `第 ${point.rank} 名${point.participantCount ? ` / ${point.participantCount} 人` : ''}`
         return `<div style="font-weight:600;margin-bottom:3px;">${point.examName}</div><div style="font-size:11px;opacity:0.8;margin-bottom:5px;">${point.examDate}</div><div>分数：${scoreText} (${rateText})</div><div>变化：${scoreDeltaText}</div><div>排名：${rankText}</div>`
       },
+    },
+    axisPointer: {
+      link: [{ xAxisIndex: 'all' }],
     },
     xAxis: [
       {
@@ -490,6 +502,7 @@ export function ReplayPage() {
         connectNulls: false,
         symbolSize: 8,
         cursor: 'pointer',
+        triggerLineEvent: true,
         z: 3,
         lineStyle: { width: 3.5, color: accentColor },
         label: {
@@ -572,6 +585,7 @@ export function ReplayPage() {
         symbol: 'diamond',
         symbolSize: 8,
         cursor: 'pointer',
+        triggerLineEvent: true,
         z: 3,
         lineStyle: { width: 2.5 },
         label: {

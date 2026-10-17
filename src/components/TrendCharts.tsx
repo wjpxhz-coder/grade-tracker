@@ -121,12 +121,21 @@ export function TrendCharts({
     ],
     legend: { top: 2, data: [displayMode === 'percentage' ? '得分率' : '原始分', '年级排名'], textStyle: { color: chartTheme.muted } },
     tooltip: {
-      trigger: 'item',
+      trigger: 'axis',
       confine: true,
       renderMode: 'richText',
       backgroundColor: chartTheme.tooltip,
       borderColor: chartTheme.line,
       textStyle: { color: chartTheme.ink },
+      axisPointer: {
+        type: 'line',
+        snap: true,
+        lineStyle: {
+          color: chartTheme.line,
+          type: 'dashed',
+          width: 1.5,
+        },
+      },
       formatter: (raw) => {
         const params = Array.isArray(raw) ? raw : [raw]
         const index = Number((params[0] as { dataIndex?: number })?.dataIndex ?? 0)
@@ -152,6 +161,9 @@ export function TrendCharts({
         return `${point.examName}\n${point.examDate}\n分数：${scoreText}（${rateText}）\n变化：${scoreDeltaText}\n排名：${rankText}\n排名变化：${rankDeltaText}`
       },
     },
+    axisPointer: {
+      link: [{ xAxisIndex: 'all' }],
+    },
     xAxis: [
       { type: 'category', gridIndex: 0, data: labels, axisLabel: { show: false }, axisTick: { show: false }, axisLine: { lineStyle: { color: chartTheme.line } } },
       { type: 'category', gridIndex: 1, data: labels, axisLabel: { color: chartTheme.muted }, axisTick: { show: false }, axisLine: { lineStyle: { color: chartTheme.line } } },
@@ -171,6 +183,7 @@ export function TrendCharts({
         connectNulls: false,
         symbolSize: 10,
         cursor: 'pointer',
+        triggerLineEvent: true,
         lineStyle: { width: 3 },
         areaStyle: { opacity: 0.07 },
         label: {
@@ -218,6 +231,7 @@ export function TrendCharts({
         symbol: 'diamond',
         symbolSize: 10,
         cursor: 'pointer',
+        triggerLineEvent: true,
         lineStyle: { width: 2.5 },
         label: {
           show: true,
@@ -270,13 +284,22 @@ export function TrendCharts({
         style={{ height: variant === 'workspace' && !isCompactViewport ? 360 : 280 }}
         notMerge
         onEvents={{
-          click: (params: { data?: { examId?: string } }) => {
-            if (params.data?.examId) void navigate(`/exams/${params.data.examId}`)
+          click: (params: { data?: { examId?: string }; dataIndex?: number }) => {
+            const examId = params.data?.examId ?? (typeof params.dataIndex === 'number' ? points[params.dataIndex]?.examId : undefined)
+            if (examId) void navigate(`/exams/${examId}`)
           },
-          mouseover: (params: { data?: { examId?: string } }) => {
-            if (params.data?.examId) onActiveExamChange?.(params.data.examId)
+          mouseover: (params: { data?: { examId?: string }; dataIndex?: number }) => {
+            const examId = params.data?.examId ?? (typeof params.dataIndex === 'number' ? points[params.dataIndex]?.examId : undefined)
+            if (examId) onActiveExamChange?.(examId)
           },
           mouseout: () => onActiveExamChange?.(undefined),
+          updateAxisPointer: (params: { dataIndex?: number; axesInfo?: Array<{ value?: number }> }) => {
+            const rawIndex = params.dataIndex ?? params.axesInfo?.[0]?.value
+            if (typeof rawIndex === 'number' && points[rawIndex]) {
+              onActiveExamChange?.(points[rawIndex].examId)
+            }
+          },
+          hideTip: () => onActiveExamChange?.(undefined),
         }}
       />
     </div>

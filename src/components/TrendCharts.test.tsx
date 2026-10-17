@@ -57,7 +57,7 @@ describe('TrendCharts', () => {
     expect(screen.getByText(`还没有${METRIC_LABELS.total}数据`)).toBeInTheDocument()
   })
 
-  it('configures tooltip to trigger on item (point) only with confine enabled', () => {
+  it('configures tooltip to trigger on axis for comfortable hover range with confine enabled', () => {
     capturedOption = null
     render(
       <MemoryRouter>
@@ -68,16 +68,32 @@ describe('TrendCharts', () => {
     expect(screen.getByTestId('echarts-mock')).toBeInTheDocument()
     expect(capturedOption).not.toBeNull()
 
-    const tooltip = capturedOption?.tooltip as { trigger?: string; confine?: boolean; formatter?: (raw: unknown) => string }
-    expect(tooltip?.trigger).toBe('item')
+    const tooltip = capturedOption?.tooltip as {
+      trigger?: string
+      confine?: boolean
+      formatter?: (raw: unknown) => string
+      axisPointer?: { snap?: boolean; type?: string }
+    }
+    expect(tooltip?.trigger).toBe('axis')
     expect(tooltip?.confine).toBe(true)
+    expect(tooltip?.axisPointer?.type).toBe('line')
+    expect(tooltip?.axisPointer?.snap).toBe(true)
 
-    // Verify formatter generates full details for point hover
-    const formatted = tooltip?.formatter?.({ dataIndex: 0 })
-    expect(formatted).toContain('高二期末考试')
-    expect(formatted).toContain('2026-06-27')
-    expect(formatted).toContain('560')
-    expect(formatted).toContain('49')
+    const axisPointer = capturedOption?.axisPointer as { link?: Array<{ xAxisIndex?: string }> }
+    expect(axisPointer?.link).toEqual([{ xAxisIndex: 'all' }])
+
+    // Verify formatter generates full details for hover with both single object and array format
+    const formattedFromObj = tooltip?.formatter?.({ dataIndex: 0 })
+    expect(formattedFromObj).toContain('高二期末考试')
+    expect(formattedFromObj).toContain('2026-06-27')
+    expect(formattedFromObj).toContain('560')
+    expect(formattedFromObj).toContain('49')
+
+    const formattedFromArr = tooltip?.formatter?.([{ dataIndex: 0 }])
+    expect(formattedFromArr).toContain('高二期末考试')
+    expect(formattedFromArr).toContain('2026-06-27')
+    expect(formattedFromArr).toContain('560')
+    expect(formattedFromArr).toContain('49')
   })
 
   it('sets comfortable symbolSize and pointer cursor for line nodes', () => {
