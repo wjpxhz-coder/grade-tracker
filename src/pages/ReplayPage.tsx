@@ -937,51 +937,6 @@ export function ReplayPage() {
               </div>
             )}
 
-            {/* 柔光扫描光标线（Playhead Beam），在动态生长前端指引并与底部时间轴绝对同步 */}
-            {points.length > 1 && (
-              <div
-                className="replay-chart-playhead"
-                style={{
-                  position: 'absolute',
-                  left: clipRevealRight,
-                  top: '30px',
-                  bottom: '24px',
-                  width: '2px',
-                  transform: 'translateX(-50%)',
-                  pointerEvents: 'none',
-                  background: `linear-gradient(to bottom, rgba(130, 175, 151, 0.1), ${accentColor} 40%, ${resolvedTheme === 'dark' ? '#e19b7d' : '#a65f46'} 70%, rgba(225, 155, 125, 0.1))`,
-                  boxShadow: `0 0 8px ${accentColor}`,
-                  zIndex: 4,
-                }}
-              >
-                <div
-                  style={{
-                    position: 'absolute',
-                    top: '14%',
-                    left: '50%',
-                    transform: 'translate(-50%, -50%)',
-                    width: '7px',
-                    height: '7px',
-                    borderRadius: '50%',
-                    background: accentColor,
-                    boxShadow: `0 0 8px ${accentColor}`,
-                  }}
-                />
-                <div
-                  style={{
-                    position: 'absolute',
-                    top: '70%',
-                    left: '50%',
-                    transform: 'translate(-50%, -50%)',
-                    width: '7px',
-                    height: '7px',
-                    borderRadius: '50%',
-                    background: resolvedTheme === 'dark' ? '#e19b7d' : '#a65f46',
-                    boxShadow: '0 0 8px rgba(166, 95, 70, 0.8)',
-                  }}
-                />
-              </div>
-            )}
           </section>
         </main>
       )}
