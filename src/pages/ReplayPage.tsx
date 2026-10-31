@@ -379,11 +379,25 @@ export function ReplayPage() {
   const allScoreValues = points.map((p) => (displayMode === 'percentage' ? p.scoreRate : p.score))
   const allRankValues = points.map((p) => p.rank)
 
-  const option: EChartsOption = {
+  const maxIndex = Math.max(0, points.length - 1)
+  const progressRatio = maxIndex > 0 ? Math.min(1, Math.max(0, progress / maxIndex)) : 1
+  const clipRevealRight = `calc(52px + ${progressRatio} * (100% - 76px))`
+
+  const areaGradient = selectedProfile?.color_key === 'peach'
+    ? new echarts.graphic.LinearGradient(0, 0, 0, 1, [
+        { offset: 0, color: resolvedTheme === 'dark' ? 'rgba(225, 155, 125, 0.32)' : 'rgba(166, 95, 70, 0.28)' },
+        { offset: 1, color: resolvedTheme === 'dark' ? 'rgba(225, 155, 125, 0.01)' : 'rgba(166, 95, 70, 0.01)' },
+      ])
+    : new echarts.graphic.LinearGradient(0, 0, 0, 1, [
+        { offset: 0, color: resolvedTheme === 'dark' ? 'rgba(130, 175, 151, 0.32)' : 'rgba(63, 110, 90, 0.28)' },
+        { offset: 1, color: resolvedTheme === 'dark' ? 'rgba(130, 175, 151, 0.01)' : 'rgba(63, 110, 90, 0.01)' },
+      ])
+
+  // Base Option: 负责坐标轴、刻度网格、全景虚线参考轨迹、考点已激活的标记节点与数值标签、交互提示 Tooltip
+  const baseOption: EChartsOption = useMemo(() => ({
     animation: true,
-    animationDuration: Math.round(550 / playbackSpeed),
-    animationDurationUpdate: Math.round(500 / playbackSpeed),
-    animationEasing: 'cubicOut',
+    animationDuration: 0,
+    animationDurationUpdate: 250,
     animationEasingUpdate: 'cubicOut',
     aria: { enabled: true },
     color: [accentColor, resolvedTheme === 'dark' ? '#e19b7d' : '#a65f46'],
@@ -415,7 +429,7 @@ export function ReplayPage() {
         const params = Array.isArray(raw) ? raw : [raw]
         const index = Number((params[0] as { dataIndex?: number })?.dataIndex ?? 0)
         const point = points[index]
-        if (!point || index > safeIndex) return ''
+        if (!point) return ''
         const scoreText = point.score === null ? '未录入' : `${point.score}${point.maxScore === null ? '' : ` / ${point.maxScore}`}`
         const rateText = point.scoreRate === null ? '—' : `${point.scoreRate.toFixed(1)}%`
         const scoreDelta = displayMode === 'percentage' ? point.scoreRateChange : point.scoreChange
@@ -431,6 +445,7 @@ export function ReplayPage() {
       {
         type: 'category',
         gridIndex: 0,
+        boundaryGap: false,
         data: labels,
         axisLabel: { show: false },
         axisTick: { show: false },
@@ -439,6 +454,7 @@ export function ReplayPage() {
       {
         type: 'category',
         gridIndex: 1,
+        boundaryGap: false,
         data: labels,
         axisLabel: { color: chartTheme.muted, fontSize: 11 },
         axisTick: { show: false },
@@ -475,7 +491,8 @@ export function ReplayPage() {
         type: 'line',
         xAxisIndex: 0,
         yAxisIndex: 0,
-        smooth: 0.25,
+        smooth: 0.42,
+        smoothMonotone: 'x',
         connectNulls: true,
         symbol: 'circle',
         symbolSize: 4,
@@ -492,19 +509,20 @@ export function ReplayPage() {
         data: allScoreValues,
         z: 1,
       },
-      // 主得分折线
+      // 主得分考点已达标记与文字标签（实线轨迹由顶层 Overlay 层通过 CSS 硬件加速顺滑平移揭示）
       {
         name: displayMode === 'percentage' ? '得分率' : '原始分',
         type: 'line',
         xAxisIndex: 0,
         yAxisIndex: 0,
-        smooth: 0.25,
+        smooth: 0.42,
+        smoothMonotone: 'x',
         connectNulls: false,
         symbolSize: 8,
         cursor: 'pointer',
         triggerLineEvent: true,
         z: 3,
-        lineStyle: { width: 3.5, color: accentColor },
+        lineStyle: { opacity: 0 },
         label: {
           show: true,
           position: 'top',
@@ -528,16 +546,11 @@ export function ReplayPage() {
           scale: 1.35,
           focus: 'series',
         },
-        areaStyle: {
-          color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [
-            { offset: 0, color: 'rgba(79, 124, 106, 0.26)' },
-            { offset: 1, color: 'rgba(79, 124, 106, 0.01)' },
-          ]),
-        },
         data: rawScoreValues.map((value, idx) => {
           const isCurrent = idx === safeIndex
           return {
             value,
+            symbol: 'circle',
             symbolSize: isCurrent ? 14 : 7,
             itemStyle: isCurrent
               ? {
@@ -557,7 +570,8 @@ export function ReplayPage() {
         type: 'line',
         xAxisIndex: 1,
         yAxisIndex: 1,
-        smooth: 0.25,
+        smooth: 0.42,
+        smoothMonotone: 'x',
         connectNulls: true,
         symbol: 'diamond',
         symbolSize: 4,
@@ -574,20 +588,21 @@ export function ReplayPage() {
         data: allRankValues,
         z: 1,
       },
-      // 主排名折线
+      // 主排名考点已达标记与文字标签
       {
         name: '年级排名',
         type: 'line',
         xAxisIndex: 1,
         yAxisIndex: 1,
-        smooth: 0.25,
+        smooth: 0.42,
+        smoothMonotone: 'x',
         connectNulls: false,
         symbol: 'diamond',
         symbolSize: 8,
         cursor: 'pointer',
         triggerLineEvent: true,
         z: 3,
-        lineStyle: { width: 2.5 },
+        lineStyle: { opacity: 0 },
         label: {
           show: true,
           position: 'top',
@@ -612,6 +627,7 @@ export function ReplayPage() {
           const isCurrent = idx === safeIndex
           return {
             value,
+            symbol: 'diamond',
             symbolSize: isCurrent ? 14 : 7,
             itemStyle: isCurrent
               ? {
@@ -625,7 +641,92 @@ export function ReplayPage() {
         }),
       },
     ],
-  }
+  }), [points, safeIndex, displayMode, chartTheme, accentColor, resolvedTheme, labels, rawScoreValues, rankValues, allScoreValues, allRankValues])
+
+  // Overlay Option: 专门绘制完整的顺滑平滑曲线与精致渐变面积，通过外层 CSS clipPath 硬件加速实现无级变速与丝滑生长流动
+  const overlayOption: EChartsOption = useMemo(() => ({
+    animation: false,
+    color: [accentColor, resolvedTheme === 'dark' ? '#e19b7d' : '#a65f46'],
+    grid: [
+      { left: 52, right: 24, top: 34, height: '40%' },
+      { left: 52, right: 24, top: '56%', height: '36%' },
+    ],
+    legend: { show: false },
+    tooltip: { show: false },
+    xAxis: [
+      {
+        type: 'category',
+        gridIndex: 0,
+        boundaryGap: false,
+        data: labels,
+        show: false,
+      },
+      {
+        type: 'category',
+        gridIndex: 1,
+        boundaryGap: false,
+        data: labels,
+        show: false,
+      },
+    ],
+    yAxis: [
+      {
+        type: 'value',
+        gridIndex: 0,
+        min: displayMode === 'percentage' ? 0 : undefined,
+        max: displayMode === 'percentage' ? 100 : undefined,
+        show: false,
+      },
+      {
+        type: 'value',
+        gridIndex: 1,
+        inverse: true,
+        min: 1,
+        minInterval: 1,
+        show: false,
+      },
+    ],
+    series: [
+      // 连续顺滑主得分曲线与面积渐变填充
+      {
+        name: displayMode === 'percentage' ? '得分率' : '原始分',
+        type: 'line',
+        xAxisIndex: 0,
+        yAxisIndex: 0,
+        smooth: 0.42,
+        smoothMonotone: 'x',
+        connectNulls: false,
+        showSymbol: false,
+        label: { show: false },
+        silent: true,
+        z: 3,
+        lineStyle: { width: 3.5, color: accentColor },
+        areaStyle: {
+          color: areaGradient,
+        },
+        data: allScoreValues,
+      },
+      // 连续顺滑主排名曲线
+      {
+        name: '年级排名',
+        type: 'line',
+        xAxisIndex: 1,
+        yAxisIndex: 1,
+        smooth: 0.42,
+        smoothMonotone: 'x',
+        connectNulls: false,
+        showSymbol: false,
+        label: { show: false },
+        silent: true,
+        z: 3,
+        lineStyle: {
+          width: 2.5,
+          color: resolvedTheme === 'dark' ? '#e19b7d' : '#a65f46',
+        },
+        data: allRankValues,
+      },
+    ],
+  }), [accentColor, resolvedTheme, displayMode, labels, areaGradient, allScoreValues, allRankValues])
 
   const handleMetricChange = (newMetric: TrendMetric) => {
     setMetric(newMetric)
@@ -792,12 +893,13 @@ export function ReplayPage() {
             </section>
           )}
 
-          {/* Full-bleed ECharts Canvas */}
+          {/* Full-bleed ECharts Canvas Stage */}
           <section className="replay-chart-stage">
+            {/* 底层 Base Chart：负责坐标轴、刻度网格、背景全景虚线、已激活节点及 Tooltip 交互 */}
             <ReactEChartsCore
-              key={metric}
+              key={`${metric}-base`}
               echarts={echarts}
-              option={option}
+              option={baseOption}
               className="replay-chart-canvas"
               style={{ width: '100%', height: '100%' }}
               notMerge={false}
@@ -810,6 +912,76 @@ export function ReplayPage() {
                 },
               }}
             />
+
+            {/* 顶层 Overlay Chart：纯曲线与渐变面积，应用 CSS 硬件加速 clip-path 实现无卡顿丝滑生长揭示 */}
+            {points.length > 0 && (
+              <div
+                className="replay-chart-overlay"
+                style={{
+                  position: 'absolute',
+                  inset: 0,
+                  pointerEvents: 'none',
+                  clipPath: `polygon(0 0, ${clipRevealRight} 0, ${clipRevealRight} 100%, 0 100%)`,
+                  WebkitClipPath: `polygon(0 0, ${clipRevealRight} 0, ${clipRevealRight} 100%, 0 100%)`,
+                }}
+              >
+                <ReactEChartsCore
+                  key={`${metric}-overlay`}
+                  echarts={echarts}
+                  option={overlayOption}
+                  className="replay-chart-canvas"
+                  style={{ width: '100%', height: '100%' }}
+                  notMerge={true}
+                  lazyUpdate={true}
+                />
+              </div>
+            )}
+
+            {/* 柔光扫描光标线（Playhead Beam），在动态生长前端指引并与底部时间轴绝对同步 */}
+            {points.length > 1 && (
+              <div
+                className="replay-chart-playhead"
+                style={{
+                  position: 'absolute',
+                  left: clipRevealRight,
+                  top: '30px',
+                  bottom: '24px',
+                  width: '2px',
+                  transform: 'translateX(-50%)',
+                  pointerEvents: 'none',
+                  background: `linear-gradient(to bottom, rgba(130, 175, 151, 0.1), ${accentColor} 40%, ${resolvedTheme === 'dark' ? '#e19b7d' : '#a65f46'} 70%, rgba(225, 155, 125, 0.1))`,
+                  boxShadow: `0 0 8px ${accentColor}`,
+                  zIndex: 4,
+                }}
+              >
+                <div
+                  style={{
+                    position: 'absolute',
+                    top: '14%',
+                    left: '50%',
+                    transform: 'translate(-50%, -50%)',
+                    width: '7px',
+                    height: '7px',
+                    borderRadius: '50%',
+                    background: accentColor,
+                    boxShadow: `0 0 8px ${accentColor}`,
+                  }}
+                />
+                <div
+                  style={{
+                    position: 'absolute',
+                    top: '70%',
+                    left: '50%',
+                    transform: 'translate(-50%, -50%)',
+                    width: '7px',
+                    height: '7px',
+                    borderRadius: '50%',
+                    background: resolvedTheme === 'dark' ? '#e19b7d' : '#a65f46',
+                    boxShadow: '0 0 8px rgba(166, 95, 70, 0.8)',
+                  }}
+                />
+              </div>
+            )}
           </section>
         </main>
       )}
