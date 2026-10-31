@@ -394,7 +394,7 @@ export function ReplayPage() {
       ])
 
   // Base Option: 负责坐标轴、刻度网格、全景虚线参考轨迹、考点已激活的标记节点与数值标签、交互提示 Tooltip
-  const baseOption: EChartsOption = useMemo(() => ({
+  const baseOption: EChartsOption = {
     animation: true,
     animationDuration: 0,
     animationDurationUpdate: 250,
@@ -641,10 +641,10 @@ export function ReplayPage() {
         }),
       },
     ],
-  }), [points, safeIndex, displayMode, chartTheme, accentColor, resolvedTheme, labels, rawScoreValues, rankValues, allScoreValues, allRankValues])
+  }
 
   // Overlay Option: 专门绘制完整的顺滑平滑曲线与精致渐变面积，通过外层 CSS clipPath 硬件加速实现无级变速与丝滑生长流动
-  const overlayOption: EChartsOption = useMemo(() => ({
+  const overlayOption: EChartsOption = {
     animation: false,
     color: [accentColor, resolvedTheme === 'dark' ? '#e19b7d' : '#a65f46'],
     grid: [
@@ -726,7 +726,7 @@ export function ReplayPage() {
         data: allRankValues,
       },
     ],
-  }), [accentColor, resolvedTheme, displayMode, labels, areaGradient, allScoreValues, allRankValues])
+  }
 
   const handleMetricChange = (newMetric: TrendMetric) => {
     setMetric(newMetric)
