@@ -219,4 +219,38 @@ describe('ReplayPage', () => {
     expect(fsBtn).toBeInTheDocument()
     fireEvent.click(fsBtn)
   })
+
+  it('handles loading transition without violating React hook rules', () => {
+    vi.mocked(useExamData).mockReturnValue({
+      exams: [],
+      subjectScores: [],
+      isLoading: true,
+      error: null,
+      refetch: vi.fn(),
+    })
+
+    const { rerender } = render(
+      <MemoryRouter initialEntries={['/replay']}>
+        <ReplayPage />
+      </MemoryRouter>,
+    )
+
+    expect(screen.queryByRole('heading', { name: /小溪的总成绩轨迹/ })).not.toBeInTheDocument()
+
+    vi.mocked(useExamData).mockReturnValue({
+      exams,
+      subjectScores,
+      isLoading: false,
+      error: null,
+      refetch: vi.fn(),
+    })
+
+    rerender(
+      <MemoryRouter initialEntries={['/replay']}>
+        <ReplayPage />
+      </MemoryRouter>,
+    )
+
+    expect(screen.getByRole('heading', { name: /小溪的总成绩轨迹/ })).toBeInTheDocument()
+  })
 })
