@@ -134,4 +134,57 @@ describe('DashboardPage', () => {
     expect(dataPointsBtn).toBeInTheDocument()
     expect(dataPointsBtn).toHaveClass('trend-datapoints-btn')
   })
+
+  it('greets the selected student scope according to the time of day', () => {
+    const selectedProfile: Profile = {
+      id: 'student-2',
+      display_name: '小蛇',
+      login_alias: 'cutesnake521',
+      color_key: 'peach',
+    }
+    vi.mocked(useAuth).mockReturnValue({
+      session: null,
+      user: null,
+      profile: { ...profile, display_name: '小溪' },
+      membership: null,
+      profiles: [{ ...profile, display_name: '小溪' }, selectedProfile],
+      loading: false,
+      configured: true,
+      refreshIdentity: vi.fn(),
+    })
+    vi.mocked(useStudentScope).mockReturnValue({
+      studentId: selectedProfile.id,
+      selectedProfile,
+      setStudentId: vi.fn(),
+    })
+
+    const hoursSpy = vi.spyOn(Date.prototype, 'getHours')
+    try {
+      hoursSpy.mockReturnValue(20)
+      const { unmount } = render(<MemoryRouter><DashboardPage /></MemoryRouter>)
+      expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent('晚上好，小蛇')
+      unmount()
+
+      hoursSpy.mockReturnValue(9)
+      render(<MemoryRouter><DashboardPage /></MemoryRouter>)
+      expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent('早上好，小蛇')
+    } finally {
+      hoursSpy.mockRestore()
+    }
+  })
+
+  it('falls back to the signed-in profile name when selectedProfile is unavailable', () => {
+    vi.mocked(useStudentScope).mockReturnValue({
+      studentId: profile.id,
+      selectedProfile: null,
+      setStudentId: vi.fn(),
+    })
+    const hoursSpy = vi.spyOn(Date.prototype, 'getHours').mockReturnValue(20)
+    try {
+      render(<MemoryRouter><DashboardPage /></MemoryRouter>)
+      expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent('晚上好，芽')
+    } finally {
+      hoursSpy.mockRestore()
+    }
+  })
 })

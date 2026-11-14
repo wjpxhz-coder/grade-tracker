@@ -160,7 +160,7 @@ export function DashboardPage() {
     <div className="page dashboard-page">
       <PageHeader
         eyebrow="成长总览"
-        title={`${getGreeting()}，${profile?.display_name ?? '你'}`}
+        title={`${getGreeting()}，${selectedProfile?.display_name ?? profile?.display_name ?? '你'}`}
         description="每一次考试都是一页，不急着定义好坏，只诚实记录变化。"
         actions={<Link className="button button--primary" to="/exams/new"><Plus size={17} />添加考试</Link>}
       />
