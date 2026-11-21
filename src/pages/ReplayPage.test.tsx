@@ -7,8 +7,13 @@ import { useExamData } from '../hooks/useExamData'
 import type { Exam, Profile, SubjectScore } from '../types/domain'
 import { ReplayPage } from './ReplayPage'
 
+const capturedOptions: unknown[] = []
+
 vi.mock('echarts-for-react/lib/core', () => ({
-  default: () => <div data-testid="mock-echarts" />,
+  default: (props: { option?: unknown }) => {
+    capturedOptions.push(props.option)
+    return <div data-testid="mock-echarts" />
+  },
 }))
 
 vi.mock('../contexts/StudentScopeContext', () => ({ useStudentScope: vi.fn() }))
@@ -252,5 +257,37 @@ describe('ReplayPage', () => {
     )
 
     expect(screen.getByRole('heading', { name: /小溪的总成绩轨迹/ })).toBeInTheDocument()
+  })
+
+  it('uses identical dynamic Y-axis bounds across base and overlay layers', () => {
+    capturedOptions.length = 0
+    render(
+      <MemoryRouter initialEntries={['/replay']}>
+        <ReplayPage />
+      </MemoryRouter>,
+    )
+
+    expect(capturedOptions.length).toBeGreaterThanOrEqual(2)
+    const baseOption = capturedOptions[capturedOptions.length - 2] as {
+      yAxis: Array<{ min?: number; max?: number; interval?: number }>
+    }
+    const overlayOption = capturedOptions[capturedOptions.length - 1] as {
+      yAxis: Array<{ min?: number; max?: number; interval?: number }>
+      series: Array<{ areaStyle?: { origin?: string } }>
+    }
+
+    // Score axis should not anchor at 0 for scores 523.5..560.5
+    expect(baseOption.yAxis[0].min).toBeGreaterThanOrEqual(480)
+    expect(baseOption.yAxis[0].min).toBeLessThan(523.5)
+    expect(baseOption.yAxis[0].max).toBeGreaterThan(560.5)
+
+    // Both layers must share identical bounds so the reveal clip stays perfectly aligned
+    expect(overlayOption.yAxis[0].min).toBe(baseOption.yAxis[0].min)
+    expect(overlayOption.yAxis[0].max).toBe(baseOption.yAxis[0].max)
+    expect(overlayOption.yAxis[0].interval).toBe(baseOption.yAxis[0].interval)
+    expect(overlayOption.yAxis[1].min).toBe(baseOption.yAxis[1].min)
+    expect(overlayOption.yAxis[1].max).toBe(baseOption.yAxis[1].max)
+    expect(overlayOption.yAxis[1].interval).toBe(baseOption.yAxis[1].interval)
+    expect(overlayOption.series[0].areaStyle?.origin).toBe('start')
   })
 })
