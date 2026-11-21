@@ -29,6 +29,7 @@ import { METRIC_LABELS } from '../components/TrendCharts'
 import { useStudentScope } from '../contexts/StudentScopeContext'
 import { useTheme } from '../contexts/ThemeContext'
 import { useExamData } from '../hooks/useExamData'
+import { computeRankAxisBounds, computeScoreAxisBounds } from '../lib/chartAxis'
 import { formatDate, formatScore } from '../lib/format'
 import { unwrapDefaultExport } from '../lib/module'
 import {
@@ -378,6 +379,12 @@ export function ReplayPage() {
   const rankValues = points.map((p, idx) => (idx <= safeIndex ? p.rank : null))
   const allScoreValues = points.map((p) => (displayMode === 'percentage' ? p.scoreRate : p.score))
   const allRankValues = points.map((p) => p.rank)
+  const scoreAxisBounds = computeScoreAxisBounds(
+    allScoreValues,
+    displayMode,
+    points.map((p) => p.maxScore),
+  )
+  const rankAxisBounds = computeRankAxisBounds(allRankValues)
 
   const maxIndex = Math.max(0, points.length - 1)
   const progressRatio = maxIndex > 0 ? Math.min(1, Math.max(0, progress / maxIndex)) : 1
@@ -466,8 +473,9 @@ export function ReplayPage() {
         type: 'value',
         gridIndex: 0,
         name: displayMode === 'percentage' ? '得分率 %' : '分数',
-        min: displayMode === 'percentage' ? 0 : undefined,
-        max: displayMode === 'percentage' ? 100 : undefined,
+        min: scoreAxisBounds.min,
+        max: scoreAxisBounds.max,
+        interval: scoreAxisBounds.interval,
         nameTextStyle: { color: chartTheme.muted, fontSize: 11 },
         axisLabel: { color: chartTheme.muted, fontSize: 11 },
         splitLine: { lineStyle: { color: chartTheme.split } },
@@ -477,7 +485,9 @@ export function ReplayPage() {
         gridIndex: 1,
         name: '年级排名',
         inverse: true,
-        min: 1,
+        min: rankAxisBounds.min ?? 1,
+        max: rankAxisBounds.max,
+        interval: rankAxisBounds.interval,
         minInterval: 1,
         nameTextStyle: { color: chartTheme.muted, fontSize: 11 },
         axisLabel: { color: chartTheme.muted, fontSize: 11 },
@@ -673,15 +683,18 @@ export function ReplayPage() {
       {
         type: 'value',
         gridIndex: 0,
-        min: displayMode === 'percentage' ? 0 : undefined,
-        max: displayMode === 'percentage' ? 100 : undefined,
+        min: scoreAxisBounds.min,
+        max: scoreAxisBounds.max,
+        interval: scoreAxisBounds.interval,
         show: false,
       },
       {
         type: 'value',
         gridIndex: 1,
         inverse: true,
-        min: 1,
+        min: rankAxisBounds.min ?? 1,
+        max: rankAxisBounds.max,
+        interval: rankAxisBounds.interval,
         minInterval: 1,
         show: false,
       },
@@ -702,6 +715,7 @@ export function ReplayPage() {
         z: 3,
         lineStyle: { width: 3.5, color: accentColor },
         areaStyle: {
+          origin: 'start',
           color: areaGradient,
         },
         data: allScoreValues,

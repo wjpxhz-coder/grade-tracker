@@ -7,6 +7,7 @@ import ReactEChartsCoreImport from 'echarts-for-react/lib/core'
 import { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useTheme } from '../contexts/ThemeContext'
+import { computeRankAxisBounds, computeScoreAxisBounds } from '../lib/chartAxis'
 import { unwrapDefaultExport } from '../lib/module'
 import { defaultScoreDisplayMode, deriveTrendPoints, type ExamTrendRecord, type ScoreDisplayMode, type TrendMetric } from '../lib/score'
 import type { Exam, SubjectScore } from '../types/domain'
@@ -17,6 +18,18 @@ const ReactEChartsCore = unwrapDefaultExport<typeof ReactEChartsCoreImport>(Reac
 
 export const METRIC_LABELS: Record<TrendMetric, string> = {
   total: '总成绩', chinese: '语文', math: '数学', english: '英语', biology: '生物', chemistry: '化学', physics: '物理',
+}
+
+function withAlpha(color: string, alpha: number): string {
+  const match = /^#([0-9a-f]{3}|[0-9a-f]{6})$/i.exec(color.trim())
+  if (!match) return color
+  const hex = match[1].length === 3
+    ? match[1].split('').map((ch) => ch + ch).join('')
+    : match[1]
+  const r = Number.parseInt(hex.slice(0, 2), 16)
+  const g = Number.parseInt(hex.slice(2, 4), 16)
+  const b = Number.parseInt(hex.slice(4, 6), 16)
+  return `rgba(${r}, ${g}, ${b}, ${alpha})`
 }
 
 function useMediaQuery(query: string): boolean {
@@ -105,19 +118,29 @@ export function TrendCharts({
 
   const labels = points.map((point) => point.examDate.slice(5).replace('-', '/'))
   const scoreValues = points.map((point) => displayMode === 'percentage' ? point.scoreRate : point.score)
+  const rankValues = points.map((point) => point.rank)
+  const scoreAxisBounds = computeScoreAxisBounds(
+    scoreValues,
+    displayMode,
+    points.map((point) => point.maxScore),
+  )
+  const rankAxisBounds = computeRankAxisBounds(rankValues)
+  const scoreAreaGradient = new echarts.graphic.LinearGradient(0, 0, 0, 1, [
+    { offset: 0, color: withAlpha(resolvedAccent, resolvedTheme === 'dark' ? 0.28 : 0.22) },
+    { offset: 1, color: withAlpha(resolvedAccent, 0.02) },
+  ])
   const option: EChartsOption = {
     animation: !prefersReducedMotion,
     animationDuration: prefersReducedMotion ? 0 : 240,
     animationDurationUpdate: prefersReducedMotion ? 0 : 180,
     aria: {
       enabled: true,
-      decal: { show: true },
       description: `${METRIC_LABELS[metric]}趋势图，共 ${points.length} 条可显示记录。上方曲线显示${displayMode === 'percentage' ? '得分率' : '原始分'}，下方曲线显示年级排名。`,
     },
     color: [resolvedAccent, resolvedTheme === 'dark' ? '#e19b7d' : '#a65f46'],
     grid: [
-      { left: 50, right: 26, top: 42, height: '28%' },
-      { left: 50, right: 26, top: '59%', height: '27%' },
+      { left: 50, right: 26, top: 44, height: '34%' },
+      { left: 50, right: 26, top: '56%', height: '32%' },
     ],
     legend: { top: 2, data: [displayMode === 'percentage' ? '得分率' : '原始分', '年级排名'], textStyle: { color: chartTheme.muted } },
     tooltip: {
@@ -169,8 +192,31 @@ export function TrendCharts({
       { type: 'category', gridIndex: 1, data: labels, axisLabel: { color: chartTheme.muted }, axisTick: { show: false }, axisLine: { lineStyle: { color: chartTheme.line } } },
     ],
     yAxis: [
-      { type: 'value', gridIndex: 0, name: displayMode === 'percentage' ? '得分率 %' : '分数', min: displayMode === 'percentage' ? 0 : undefined, max: displayMode === 'percentage' ? 100 : undefined, nameTextStyle: { color: chartTheme.muted }, axisLabel: { color: chartTheme.muted }, splitLine: { lineStyle: { color: chartTheme.split } } },
-      { type: 'value', gridIndex: 1, name: '年级排名', inverse: true, min: 1, minInterval: 1, nameTextStyle: { color: chartTheme.muted }, axisLabel: { color: chartTheme.muted }, splitLine: { lineStyle: { color: chartTheme.split } } },
+      {
+        type: 'value',
+        gridIndex: 0,
+        name: displayMode === 'percentage' ? '得分率 %' : '分数',
+        nameGap: 14,
+        min: scoreAxisBounds.min,
+        max: scoreAxisBounds.max,
+        interval: scoreAxisBounds.interval,
+        nameTextStyle: { color: chartTheme.muted },
+        axisLabel: { color: chartTheme.muted },
+        splitLine: { lineStyle: { color: chartTheme.split } },
+      },
+      {
+        type: 'value',
+        gridIndex: 1,
+        name: '年级排名',
+        inverse: true,
+        min: rankAxisBounds.min ?? 1,
+        max: rankAxisBounds.max,
+        interval: rankAxisBounds.interval,
+        minInterval: 1,
+        nameTextStyle: { color: chartTheme.muted },
+        axisLabel: { color: chartTheme.muted },
+        splitLine: { lineStyle: { color: chartTheme.split } },
+      },
     ],
     dataZoom: [{ type: 'inside', xAxisIndex: [0, 1], filterMode: 'none' }],
     series: [
@@ -180,12 +226,13 @@ export function TrendCharts({
         xAxisIndex: 0,
         yAxisIndex: 0,
         smooth: 0.25,
+        smoothMonotone: 'x',
         connectNulls: false,
         symbolSize: 10,
         cursor: 'pointer',
         triggerLineEvent: true,
         lineStyle: { width: 3 },
-        areaStyle: { opacity: 0.07 },
+        areaStyle: { origin: 'start', color: scoreAreaGradient },
         label: {
           show: true,
           position: 'top',
@@ -227,6 +274,7 @@ export function TrendCharts({
         xAxisIndex: 1,
         yAxisIndex: 1,
         smooth: 0.25,
+        smoothMonotone: 'x',
         connectNulls: false,
         symbol: 'diamond',
         symbolSize: 10,
@@ -281,7 +329,7 @@ export function TrendCharts({
         echarts={echarts}
         option={option}
         className="trend-chart__canvas"
-        style={{ height: variant === 'workspace' && !isCompactViewport ? 360 : 280 }}
+        style={{ height: variant === 'workspace' && !isCompactViewport ? 400 : 320 }}
         notMerge
         onEvents={{
           click: (params: { data?: { examId?: string }; dataIndex?: number }) => {
